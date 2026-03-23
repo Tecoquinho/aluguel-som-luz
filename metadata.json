@@ -1,0 +1,5 @@
+{
+  "name": "Som & Luz - Aluguel de Equipamentos",
+  "description": "Plataforma de aluguel de equipamentos de som e iluminação para eventos com login via Google e sistema de agendamento.",
+  "requestFramePermissions": []
+}

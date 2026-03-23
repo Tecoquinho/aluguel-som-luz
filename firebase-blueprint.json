@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "client"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Equipment": {
+      "title": "Equipment",
+      "description": "Sound and light equipment available for rent",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["Sound", "Light", "Cables", "Microphones"] },
+        "description": { "type": "string" },
+        "pricePerDay": { "type": "number" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["name", "category", "pricePerDay"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Rental booking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientUid": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "clientName": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "location": { "type": "string" },
+        "eventType": { "type": "string", "enum": ["Festa", "Cerimonia", "Pequena", "Grande", "Medio Porte"] },
+        "packageType": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "totalPrice": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientUid", "startDate", "endDate", "location", "eventType", "packageType", "status", "items"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/equipment/{equipmentId}": {
+      "schema": "Equipment",
+      "description": "Equipment catalog"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Rental bookings"
+    }
+  }
+}

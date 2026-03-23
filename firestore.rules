@@ -1,0 +1,130 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - displayName: string (optional)
+    //   - role: string (required, enum: ['admin', 'client'])
+    //   - createdAt: string (required, date-time)
+    //
+    // Collection: equipment
+    // Document ID: {equipmentId}
+    // Fields:
+    //   - id: string (optional)
+    //   - name: string (required)
+    //   - category: string (required, enum: ['Sound', 'Light', 'Cables', 'Microphones'])
+    //   - description: string (optional)
+    //   - pricePerDay: number (required, positive)
+    //   - imageUrl: string (optional, url format)
+    //
+    // Collection: bookings
+    // Document ID: {bookingId}
+    // Fields:
+    //   - id: string (optional)
+    //   - clientUid: string (required)
+    //   - clientEmail: string (required)
+    //   - clientName: string (required)
+    //   - startDate: string (required, date-time)
+    //   - endDate: string (required, date-time)
+    //   - location: string (required)
+    //   - eventType: string (required, enum: ['Festa', 'Cerimonia', 'Pequena', 'Grande', 'Medio Porte'])
+    //   - packageType: string (required, enum: ['só Luz', 'Luz + Som'])
+    //   - status: string (required, enum: ['pending', 'confirmed', 'cancelled'])
+    //   - totalPrice: number (required)
+    //   - createdAt: string (required, date-time)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "thiagohabibmonteiroster@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      function isValidUser(data) {
+        return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+               data.uid is string && data.uid.size() > 0 &&
+               data.email is string && isValidEmail(data.email) &&
+               data.role in ['admin', 'client'] &&
+               isValidDateString(data.createdAt);
+      }
+
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(uid) && request.resource.data.role == 'client' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(uid) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /equipment/{equipmentId} {
+      function isValidEquipment(data) {
+        return hasOnlyAllowedFields(['id', 'name', 'category', 'description', 'pricePerDay', 'imageUrl']) &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               data.category in ['Sound', 'Light', 'Cables', 'Microphones'] &&
+               data.pricePerDay is number && data.pricePerDay >= 0;
+      }
+
+      allow read: if true; // Catalog is public
+      allow write: if isAdmin() && isValidEquipment(request.resource.data);
+    }
+
+    match /bookings/{bookingId} {
+      function isValidBooking(data) {
+        return hasOnlyAllowedFields(['id', 'clientUid', 'clientEmail', 'clientName', 'startDate', 'endDate', 'location', 'eventType', 'packageType', 'items', 'status', 'totalPrice', 'createdAt']) &&
+               data.clientUid is string && data.clientUid.size() > 0 &&
+               data.clientEmail is string && isValidEmail(data.clientEmail) &&
+               isValidDateString(data.startDate) && isValidDateString(data.endDate) &&
+               data.location is string && data.location.size() > 0 && data.location.size() < 500 &&
+               data.eventType in ['Festa', 'Cerimonia', 'Pequena', 'Grande', 'Medio Porte'] &&
+               data.packageType is string &&
+               data.items is list && data.items.size() > 0 &&
+               data.status in ['pending', 'confirmed', 'cancelled'] &&
+               data.totalPrice is number && data.totalPrice >= 0 &&
+               isValidDateString(data.createdAt);
+      }
+
+      allow read: if isAuthenticated() && (isOwner(resource.data.clientUid) || isAdmin());
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data) && 
+                    (isOwner(request.resource.data.clientUid) || isAdmin());
+      allow update: if isAuthenticated() && isValidBooking(request.resource.data) && 
+                    (isOwner(resource.data.clientUid) && request.resource.data.status == resource.data.status || isAdmin());
+      allow delete: if isAdmin();
+    }
+  }
+}
