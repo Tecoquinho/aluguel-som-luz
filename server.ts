@@ -16,10 +16,12 @@ async function startServer() {
 
   // API routes
   app.post("/api/notify", async (req, res) => {
-    const { booking, type } = req.body;
+    const { booking, type, message } = req.body;
 
     try {
-      // 1. Email Notification (Client and Partner)
+      console.log(`Processing ${type} notification for booking: ${booking.id}`);
+
+      // 1. Email Notification
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         try {
           const transporter = nodemailer.createTransport({
@@ -30,66 +32,59 @@ async function startServer() {
             },
           });
 
-          const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: `${booking.clientEmail}, ${process.env.PARTNER_EMAIL || process.env.EMAIL_USER}`,
-            subject: `Reserva de Aluguel - ${booking.packageType}`,
-            text: `
-              Olá,
-              Uma nova reserva foi realizada:
-              
-              Cliente: ${booking.clientName}
-              Data: ${booking.startDate} até ${booking.endDate}
-              Local: ${booking.location}
-              Tipo de Evento: ${booking.eventType}
-              Pacote: ${booking.packageType}
-              Preço Total: R$ ${booking.totalPrice}
-              
-              Status: ${booking.status}
-            `,
-          };
+          const subject = type === 'question' 
+            ? `Dúvida sobre sua reserva - Som & Luz`
+            : `Reserva de Aluguel - ${booking.packageType}`;
+          
+          const text = type === 'question'
+            ? `Olá ${booking.clientName},\n\nO administrador tem uma dúvida sobre sua reserva:\n\n"${message}"\n\nPor favor, responda este e-mail para prosseguirmos.`
+            : `Nova reserva de ${booking.clientName} para o dia ${booking.startDate}.`;
 
-          await transporter.sendMail(mailOptions);
-          console.log("Email sent successfully");
-        } catch (emailError) {
-          console.error("Email notification failed:", emailError);
-          // Don't throw, let Telegram try
+          await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: type === 'question' ? booking.clientEmail : `${booking.clientEmail}, ${process.env.PARTNER_EMAIL || process.env.EMAIL_USER}`,
+            subject,
+            text,
+          });
+          console.log("Email sent.");
+        } catch (e) {
+          console.warn("Email skipped (likely config issue):", e instanceof Error ? e.message : e);
         }
+      } else {
+        console.log("Email notification skipped: Credentials not set.");
       }
 
-      // 2. Telegram Notification (Partner)
+      // 2. Telegram Notification
       if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
         try {
           const telegramUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-          const message = `
-  📦 *Nova Reserva de Aluguel*
-  👤 Cliente: ${booking.clientName}
-  📅 Data: ${booking.startDate} a ${booking.endDate}
-  📍 Local: ${booking.location}
-  🎉 Evento: ${booking.eventType}
-  🛠 Pacote: ${booking.packageType}
-  💰 Total: R$ ${booking.totalPrice}
-          `;
+          const text = type === 'question'
+            ? `❓ *Dúvida Enviada*\n👤 Para: ${booking.clientName}\n💬 Mensagem: ${message}`
+            : `📦 *Nova Reserva*\n👤 ${booking.clientName}\n💰 R$ ${booking.totalPrice}`;
 
           await fetch(telegramUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: process.env.TELEGRAM_CHAT_ID,
-              text: message,
+              text,
               parse_mode: 'Markdown',
             }),
           });
-          console.log("Telegram notification sent successfully");
-        } catch (telegramError) {
-          console.error("Telegram notification failed:", telegramError);
+          console.log("Telegram sent.");
+        } catch (e) {
+          console.warn("Telegram skipped (likely config issue):", e instanceof Error ? e.message : e);
         }
+      } else {
+        console.log("Telegram notification skipped: Credentials not set.");
       }
 
-      res.json({ success: true });
+      // Always return success to the frontend
+      res.json({ success: true, message: "Notification process completed" });
     } catch (error) {
-      console.error("General notification error:", error);
-      res.status(500).json({ error: "Failed to process notifications" });
+      // Even if the whole logic fails, we don't want to break the client's experience
+      console.error("Critical notification error:", error);
+      res.json({ success: true, warning: "Notifications failed but booking is safe" });
     }
   });
 

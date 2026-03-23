@@ -21,8 +21,10 @@ import {
   orderBy, 
   doc, 
   setDoc, 
+  getDoc,
   getDocs,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { 
   Music, 
@@ -37,6 +39,7 @@ import {
   XCircle,
   Plus,
   Trash2,
+  Mail,
   Menu,
   X
 } from 'lucide-react';
@@ -95,6 +98,18 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [cart, setCart] = useState<Equipment[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [isAddingEquipment, setIsAddingEquipment] = useState(false);
+  const [isAsking, setIsAsking] = useState(false);
+  const [askingBooking, setAskingBooking] = useState<Booking | null>(null);
+  const [askMessage, setAskMessage] = useState('');
+  const [newEquip, setNewEquip] = useState<Partial<Equipment>>({
+    name: '',
+    category: 'Sound',
+    pricePerDay: 0,
+    description: '',
+    imageUrl: 'https://picsum.photos/seed/equip/400/300'
+  });
 
   // Form State
   const [startDate, setStartDate] = useState<Date | null>(new Date());
@@ -180,10 +195,10 @@ export default function App() {
       setUser(firebaseUser);
       if (firebaseUser) {
         // Fetch or create profile
-        const userDoc = doc(db, 'users', firebaseUser.uid);
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
         try {
-          const docSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', firebaseUser.uid)));
-          if (docSnap.empty) {
+          const docSnap = await getDoc(userDocRef);
+          if (!docSnap.exists()) {
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
@@ -191,10 +206,11 @@ export default function App() {
               role: firebaseUser.email === 'thiagohabibmonteiroster@gmail.com' ? 'admin' : 'client',
               createdAt: new Date().toISOString()
             };
-            await setDoc(userDoc, newProfile);
+            await setDoc(userDocRef, newProfile);
             setProfile(newProfile);
+            setIsAdmin(newProfile.role === 'admin');
           } else {
-            const data = docSnap.docs[0].data() as UserProfile;
+            const data = docSnap.data() as UserProfile;
             setProfile(data);
             setIsAdmin(data.role === 'admin');
           }
@@ -268,8 +284,9 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
       toast.success('Login realizado com sucesso!');
-    } catch (error) {
-      toast.error('Erro ao fazer login.');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast.error(`Erro ao fazer login: ${error.message || 'Erro desconhecido'}`);
     }
   };
 
@@ -341,6 +358,58 @@ export default function App() {
     }
   };
 
+  const handleAddEquipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+    
+    try {
+      await addDoc(collection(db, 'equipment'), {
+        ...newEquip,
+        imageUrl: `https://picsum.photos/seed/${encodeURIComponent(newEquip.name || 'equip')}/400/300`
+      });
+      setIsAddingEquipment(false);
+      setNewEquip({ name: '', category: 'Sound', pricePerDay: 0, description: '', imageUrl: 'https://picsum.photos/seed/equip/400/300' });
+      toast.success('Equipamento adicionado com sucesso!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'equipment');
+    }
+  };
+
+  const handleDeleteEquipment = async (id: string) => {
+    if (!isAdmin || !window.confirm('Tem certeza que deseja excluir este item?')) return;
+    try {
+      await deleteDoc(doc(db, 'equipment', id));
+      toast.success('Equipamento removido do catálogo.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'equipment');
+    }
+  };
+
+  const handleAsk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!askingBooking || !askMessage) return;
+
+    try {
+      // Notify server about the question
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          booking: askingBooking, 
+          type: 'question',
+          message: askMessage
+        })
+      });
+      
+      toast.success(`Mensagem enviada para ${askingBooking.clientName}!`);
+      setIsAsking(false);
+      setAskMessage('');
+      setAskingBooking(null);
+    } catch (error) {
+      toast.error('Erro ao enviar mensagem.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white font-sans">
@@ -358,6 +427,274 @@ export default function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-orange-500/30">
       <Toaster position="top-center" richColors />
       
+      {/* Admin Panel Overlay */}
+      <AnimatePresence>
+        {showAdmin && isAdmin && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col pt-16"
+          >
+            <div className="flex-1 overflow-y-auto p-6 md:p-12">
+              <div className="max-w-7xl mx-auto space-y-12">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h2 className="text-5xl font-black tracking-tighter uppercase italic">Painel Admin</h2>
+                    <p className="text-zinc-500 font-medium mt-2">Gestão total do seu negócio de aluguel</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowAdmin(false)}
+                    className="p-4 bg-zinc-900 rounded-full hover:bg-zinc-800 border border-zinc-800 transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                  {/* Equipment Management */}
+                  <div className="lg:col-span-1 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+                        Catálogo
+                      </h3>
+                      <button 
+                        onClick={() => setIsAddingEquipment(true)}
+                        className="p-2 bg-orange-500 text-black rounded-full hover:scale-110 transition-transform"
+                      >
+                        <Plus size={20} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
+                      {equipment.map(item => (
+                        <div key={item.id} className="flex items-center gap-4 p-3 bg-zinc-900/50 border border-zinc-900 rounded-2xl group">
+                          <img src={item.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">{item.name}</p>
+                            <p className="text-[10px] text-orange-500 font-black uppercase">R$ {item.pricePerDay}/dia</p>
+                          </div>
+                          <button 
+                            onClick={() => handleDeleteEquipment(item.id)}
+                            className="p-2 text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bookings Management */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <h3 className="text-xl font-black uppercase tracking-widest">Todas as Reservas</h3>
+                    <div className="space-y-4">
+                      {bookings.map(booking => (
+                        <div key={booking.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-orange-500/30 transition-all">
+                          <div className="flex flex-col md:flex-row justify-between gap-6">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                  booking.status === 'confirmed' ? 'bg-green-500/10 text-green-500' : 
+                                  booking.status === 'cancelled' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
+                                }`}>
+                                  {booking.status === 'confirmed' ? 'Confirmada' : booking.status === 'cancelled' ? 'Cancelada' : 'Pendente'}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase">{format(new Date(booking.createdAt), 'dd/MM/yy HH:mm')}</span>
+                              </div>
+                              <h4 className="text-xl font-bold">{booking.clientName}</h4>
+                              <p className="text-sm text-zinc-500">{booking.clientEmail}</p>
+                              <div className="flex flex-wrap gap-4 text-xs text-zinc-400 pt-2">
+                                <div className="flex items-center gap-1.5"><Calendar size={14} /> {format(new Date(booking.startDate), 'dd/MM/yy')} - {format(new Date(booking.endDate), 'dd/MM/yy')}</div>
+                                <div className="flex items-center gap-1.5"><MapPin size={14} /> {booking.location}</div>
+                              </div>
+                            </div>
+                            <div className="text-right flex flex-col justify-between">
+                              <div>
+                                <p className="text-xs text-zinc-500 uppercase font-bold">Total</p>
+                                <p className="text-2xl font-black text-orange-500">R$ {booking.totalPrice}</p>
+                              </div>
+                              <div className="flex gap-2 mt-4">
+                                <button 
+                                  onClick={() => {
+                                    setAskingBooking(booking);
+                                    setIsAsking(true);
+                                  }}
+                                  className="flex-1 px-4 py-2 bg-zinc-800 text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
+                                >
+                                  <Mail size={14} /> Perguntar
+                                </button>
+                                <button 
+                                  onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                                  disabled={booking.status === 'confirmed'}
+                                  className="flex-1 px-4 py-2 bg-green-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-green-400 disabled:opacity-50 transition-all"
+                                >
+                                  Confirmar
+                                </button>
+                                <button 
+                                  onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                                  disabled={booking.status === 'cancelled'}
+                                  className="flex-1 px-4 py-2 bg-zinc-800 text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-zinc-700 disabled:opacity-50 transition-all"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Ask Modal */}
+            <AnimatePresence>
+              {isAsking && askingBooking && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsAsking(false)}
+                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="relative bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl"
+                  >
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-3xl font-black uppercase italic">Tirar Dúvida</h3>
+                      <button onClick={() => setIsAsking(false)} className="p-2 hover:bg-zinc-800 rounded-full">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-zinc-500 mb-6">
+                      Enviando mensagem para <span className="text-white font-bold">{askingBooking.clientName}</span> sobre a reserva de <span className="text-orange-500 font-bold">{askingBooking.packageType}</span>.
+                    </p>
+                    <form onSubmit={handleAsk} className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sua Mensagem</label>
+                        <textarea 
+                          required
+                          autoFocus
+                          placeholder="Ex: Olá, gostaria de confirmar se o local possui tomadas 220v..."
+                          value={askMessage}
+                          onChange={e => setAskMessage(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 h-40 focus:outline-none focus:border-orange-500 transition-colors resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        <button 
+                          type="button"
+                          onClick={() => setIsAsking(false)}
+                          className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button 
+                          type="submit"
+                          className="flex-1 py-4 bg-orange-500 text-black font-black uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Mail size={18} /> Enviar
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* Add Equipment Modal */}
+            <AnimatePresence>
+              {isAddingEquipment && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsAddingEquipment(false)}
+                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                  />
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="relative bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl"
+                  >
+                    <h3 className="text-3xl font-black uppercase italic mb-8">Novo Equipamento</h3>
+                    <form onSubmit={handleAddEquipment} className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Nome</label>
+                        <input 
+                          required
+                          value={newEquip.name}
+                          onChange={e => setNewEquip({...newEquip, name: e.target.value})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none focus:border-orange-500 transition-colors"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Categoria</label>
+                          <select 
+                            value={newEquip.category}
+                            onChange={e => setNewEquip({...newEquip, category: e.target.value as any})}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none"
+                          >
+                            <option value="Sound">Som</option>
+                            <option value="Light">Luz</option>
+                            <option value="DJ">DJ</option>
+                            <option value="Cables">Cabos</option>
+                            <option value="Microphones">Microfones</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Preço/Dia</label>
+                          <input 
+                            type="number"
+                            required
+                            value={newEquip.pricePerDay}
+                            onChange={e => setNewEquip({...newEquip, pricePerDay: Number(e.target.value)})}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Descrição</label>
+                        <textarea 
+                          required
+                          value={newEquip.description}
+                          onChange={e => setNewEquip({...newEquip, description: e.target.value})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 h-24 focus:outline-none resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        <button 
+                          type="button"
+                          onClick={() => setIsAddingEquipment(false)}
+                          className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button 
+                          type="submit"
+                          className="flex-1 py-4 bg-orange-500 text-black font-black uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-colors"
+                        >
+                          Salvar
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -375,7 +712,14 @@ export default function App() {
                 <a href="#my-bookings" className="text-sm font-medium hover:text-orange-500 transition-colors">Minhas Reservas</a>
               )}
               {isAdmin && (
-                <a href="#admin" className="text-sm font-medium text-orange-500">Painel Admin</a>
+                <button 
+                  onClick={() => setShowAdmin(!showAdmin)}
+                  className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${
+                    showAdmin ? 'bg-orange-500 text-black' : 'text-orange-500 border border-orange-500/30 hover:bg-orange-500/10'
+                  }`}
+                >
+                  Painel Admin
+                </button>
               )}
               <div className="flex items-center gap-4">
                 {cart.length > 0 && (
