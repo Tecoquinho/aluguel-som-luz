@@ -49,8 +49,6 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 
 registerLocale('pt-BR', ptBR);
 
-import { GoogleGenAI } from "@google/genai";
-
 // Types
 interface Equipment {
   id: string;
@@ -102,9 +100,37 @@ export default function App() {
   const [startDate, setStartDate] = useState<Date | null>(new Date());
   const [endDate, setEndDate] = useState<Date | null>(addDays(new Date(), 1));
   const [location, setLocation] = useState('');
+  const [cep, setCep] = useState('');
   const [eventType, setEventType] = useState('Festa');
   const [isValidatingLocation, setIsValidatingLocation] = useState(false);
   const [locationVerified, setLocationVerified] = useState(false);
+
+  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    setCep(value);
+
+    if (value.length === 8) {
+      setIsValidatingLocation(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${value}/json/`);
+        const data = await response.json();
+
+        if (data.erro) {
+          toast.error('CEP não encontrado.');
+          setLocationVerified(false);
+        } else {
+          const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+          setLocation(fullAddress);
+          setLocationVerified(true);
+          toast.success('Endereço localizado!');
+        }
+      } catch (error) {
+        toast.error('Erro ao buscar CEP.');
+      } finally {
+        setIsValidatingLocation(false);
+      }
+    }
+  };
 
   const toggleCart = (item: Equipment) => {
     if (cart.find(i => i.id === item.id)) {
@@ -302,39 +328,6 @@ export default function App() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'bookings');
-    }
-  };
-
-  const verifyAddress = async () => {
-    if (!location || location.length < 5) {
-      toast.error('Digite um endereço mais completo para verificar.');
-      return;
-    }
-
-    setIsValidatingLocation(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `O endereço "${location}" existe realmente no Brasil? Responda apenas "SIM" ou "NAO". Se for uma cidade ou região válida, responda SIM.`,
-        config: {
-          tools: [{ googleMaps: {} }]
-        }
-      });
-
-      const result = response.text?.toUpperCase();
-      if (result?.includes('SIM')) {
-        setLocationVerified(true);
-        toast.success('Endereço verificado com sucesso!');
-      } else {
-        setLocationVerified(false);
-        toast.error('Não conseguimos validar este endereço. Verifique se está correto.');
-      }
-    } catch (error) {
-      console.error('Erro ao validar endereço:', error);
-      toast.error('Erro ao conectar com o serviço de mapas.');
-    } finally {
-      setIsValidatingLocation(false);
     }
   };
 
@@ -715,51 +708,53 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Local do Evento</label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">CEP</label>
+                      <div className="relative">
+                        <input 
+                          value={cep}
+                          onChange={handleCepChange}
+                          maxLength={8}
+                          placeholder="00000000"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 text-sm font-bold tracking-tight"
+                        />
+                        {isValidatingLocation && (
+                          <motion.div 
+                            animate={{ rotate: 360 }} 
+                            transition={{ repeat: Infinity, duration: 1 }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-500"
+                          >
+                            <Clock size={14} />
+                          </motion.div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2 space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Local do Evento (Rua, Nº, Compl.)</label>
+                      <div className="relative">
                         <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${locationVerified ? 'text-green-500' : 'text-zinc-600'}`} size={18} />
                         <input 
                           required
                           value={location}
                           onChange={(e) => {
                             setLocation(e.target.value);
-                            setLocationVerified(false);
+                            // If they manually edit, we still trust the CEP was valid if they don't clear it
+                            if (!e.target.value) setLocationVerified(false);
                           }}
-                          placeholder="Cidade, Bairro ou Endereço"
+                          placeholder="Digite o endereço completo"
                           className={`w-full bg-zinc-950 border rounded-2xl pl-12 pr-4 py-4 focus:outline-none transition-all text-sm font-medium ${
                             locationVerified ? 'border-green-500/50 focus:border-green-500' : 'border-zinc-800 focus:border-orange-500'
                           }`}
                         />
                       </div>
-                      <button 
-                        type="button"
-                        onClick={verifyAddress}
-                        disabled={isValidatingLocation || !location}
-                        className={`px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                          locationVerified 
-                          ? 'bg-green-500 text-black' 
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 disabled:opacity-50'
-                        }`}
-                      >
-                        {isValidatingLocation ? (
-                          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-                            <Clock size={14} />
-                          </motion.div>
-                        ) : locationVerified ? (
-                          <CheckCircle size={14} />
-                        ) : (
-                          'Verificar'
-                        )}
-                      </button>
                     </div>
-                    {locationVerified && (
-                      <p className="text-[10px] text-green-500 font-bold flex items-center gap-1">
-                        <CheckCircle size={10} /> Localização validada via Google Maps
-                      </p>
-                    )}
                   </div>
+                  {locationVerified && (
+                    <p className="text-[10px] text-green-500 font-bold flex items-center gap-1">
+                      <CheckCircle size={10} /> Endereço validado via CEP
+                    </p>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
