@@ -110,12 +110,37 @@ const equipmentImageByName: Record<string, string> = {
   'CAIXA ATIVA FBT 112A (par)': FBT_112A_IMAGE,
   'CAIXA SELENIUM SPM 1502 (ativa + passiva)': SELENIUM_SPM_IMAGE,
 };
-const featuredEquipmentNames = [
-  'CAIXA ATIVA JBL MAX 15 (par)',
-  'CAIXA ATIVA FBT 112A (par)',
-  'CAIXA SELENIUM SPM 1502 (ativa + passiva)',
-  'SUB ATIVO + PASSIVO 15"',
-] as const;
+const featuredCatalog: Omit<Equipment, 'id'>[] = [
+  {
+    name: 'CAIXA ATIVA JBL MAX 15 (par)',
+    category: 'Sound',
+    pricePerDay: 250,
+    description: 'Par de caixas ativas JBL para retirada, com alto rendimento e ótima presença para eventos.',
+    imageUrl: JBL_MAX_15_IMAGE,
+  },
+  {
+    name: 'CAIXA ATIVA FBT 112A (par)',
+    category: 'Sound',
+    pricePerDay: 300,
+    description: 'Par de caixas ativas FBT 112A com resposta forte e limpa para festas, cerimônias e locações.',
+    imageUrl: FBT_112A_IMAGE,
+  },
+  {
+    name: 'CAIXA SELENIUM SPM 1502 (ativa + passiva)',
+    category: 'Sound',
+    pricePerDay: 200,
+    description: 'Conjunto Selenium SPM 1502 ativo + passivo com valor base para retirada.',
+    imageUrl: SELENIUM_SPM_IMAGE,
+  },
+  {
+    name: 'SUB ATIVO + PASSIVO 15"',
+    category: 'Sound',
+    pricePerDay: 350,
+    description: 'Kit com sub ativo e passivo de 15 polegadas para reforço de graves. Frete combinado à parte.',
+    imageUrl: 'https://picsum.photos/seed/sub-ativo-passivo-15/400/300',
+  },
+];
+const featuredEquipmentNames = featuredCatalog.map(item => item.name);
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -219,9 +244,12 @@ export default function App() {
   const getEquipmentImage = (item: Pick<Equipment, 'name' | 'imageUrl'>) => {
     return equipmentImageByName[item.name] || item.imageUrl;
   };
-  const displayedEquipment = equipment.filter(item =>
-    featuredEquipmentNames.includes(item.name as (typeof featuredEquipmentNames)[number])
+  const featuredEquipment = equipment.filter(item =>
+    featuredEquipmentNames.includes(item.name)
   );
+  const displayedEquipment = featuredEquipment.length > 0
+    ? featuredEquipment
+    : featuredCatalog.map(item => ({ ...item, id: item.name }));
 
   const isDateUnavailable = (date: Date) => {
     const dayStr = startOfDay(date).toISOString();
@@ -272,8 +300,9 @@ export default function App() {
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Equipment));
       setEquipment(items);
       
-      // Seed initial data if empty
-      if (items.length === 0 && isAdmin) {
+      // Ensure the featured catalog exists even if the database still has old example items.
+      const hasFeaturedItems = items.some(item => featuredEquipmentNames.includes(item.name));
+      if (!hasFeaturedItems && isAdmin) {
         seedInitialEquipment();
       }
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'equipment'));
@@ -297,17 +326,16 @@ export default function App() {
   }, [user, isAdmin]);
 
   const seedInitialEquipment = async () => {
-    const initial = [
-      { name: 'CAIXA ATIVA JBL MAX 15 (par)', category: 'Sound', pricePerDay: 250, description: 'Par de caixas ativas JBL para retirada, com alto rendimento e ótima presença para eventos.' },
-      { name: 'CAIXA ATIVA FBT 112A (par)', category: 'Sound', pricePerDay: 300, description: 'Par de caixas ativas FBT 112A com resposta forte e limpa para festas, cerimônias e locações.' },
-      { name: 'CAIXA SELENIUM SPM 1502 (ativa + passiva)', category: 'Sound', pricePerDay: 200, description: 'Conjunto Selenium SPM 1502 ativo + passivo com valor base para retirada.' },
-      { name: 'SUB ATIVO + PASSIVO 15"', category: 'Sound', pricePerDay: 350, description: 'Kit com sub ativo e passivo de 15 polegadas para reforço de graves. Frete combinado à parte.' },
-    ];
+    const existingSnapshot = await getDocs(query(collection(db, 'equipment'), orderBy('name')));
+    const existingNames = new Set(
+      existingSnapshot.docs.map(doc => String(doc.data().name || ''))
+    );
 
-    for (const item of initial) {
+    for (const item of featuredCatalog) {
+      if (existingNames.has(item.name)) continue;
       await addDoc(collection(db, 'equipment'), {
         ...item,
-        imageUrl: equipmentImageByName[item.name] || `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/300`
+        imageUrl: equipmentImageByName[item.name] || item.imageUrl
       });
     }
   };
