@@ -83,7 +83,7 @@ const featuredCatalog: Equipment[] = [
     id: 'catalog-jbl-max-15',
     name: 'CAIXA ATIVA JBL MAX 15 (par)',
     category: 'Sound',
-    pricePerDay: 250,
+    pricePerDay: 220,
     description: 'Par de caixas ativas JBL para retirada, com alto rendimento e ótima presença para eventos.',
     imageUrl: JBL_MAX_15_IMAGE,
     images: JBL_MAX_15_IMAGES,
@@ -92,7 +92,7 @@ const featuredCatalog: Equipment[] = [
     id: 'catalog-fbt-112a',
     name: 'CAIXA ATIVA FBT 112A (par)',
     category: 'Sound',
-    pricePerDay: 300,
+    pricePerDay: 250,
     description: 'Par de caixas ativas FBT 112A com resposta forte e limpa para festas, cerimônias e locações.',
     imageUrl: FBT_112A_IMAGE,
     images: FBT_112A_IMAGES,
@@ -117,6 +117,7 @@ const featuredCatalog: Equipment[] = [
   },
 ];
 
+const featuredCatalogByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item]));
 const imageByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item.imageUrl]));
 const galleryByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item.images || [item.imageUrl]]));
 const featuredNames = featuredCatalog.map(item => item.name);
@@ -169,6 +170,8 @@ export default function App() {
       .filter(item => featuredNames.includes(item.name))
       .map(item => ({
         ...item,
+        pricePerDay: featuredCatalogByName[item.name]?.pricePerDay ?? item.pricePerDay,
+        description: featuredCatalogByName[item.name]?.description ?? item.description,
         imageUrl: imageByName[item.name] || item.imageUrl,
         images: galleryByName[item.name] || item.images || [item.imageUrl],
       }));
