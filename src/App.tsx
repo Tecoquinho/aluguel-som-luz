@@ -53,11 +53,23 @@ import { ptBR } from 'date-fns/locale/pt-BR';
 
 registerLocale('pt-BR', ptBR);
 
-const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5511999999999';
+const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5521996341398';
 const WHATSAPP_MESSAGE = encodeURIComponent(
   'Olá! Vim pelo site e gostaria de pedir um orçamento para aluguel de som e luz.'
 );
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${WHATSAPP_MESSAGE}`;
+const JBL_MAX_15_IMAGE = new URL(
+  '../Imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_647293-MLA99998222149_112025-F.webp',
+  import.meta.url
+).href;
+const FBT_112A_IMAGE = new URL(
+  '../Imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_691433-MLB97837649161_112025-F.webp',
+  import.meta.url
+).href;
+const SELENIUM_SPM_IMAGE = new URL(
+  '../Imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_706664-MLB103864028495_012026-F.webp',
+  import.meta.url
+).href;
 
 // Types
 interface Equipment {
@@ -92,6 +104,18 @@ interface UserProfile {
   role: 'admin' | 'client';
   createdAt: string;
 }
+
+const equipmentImageByName: Record<string, string> = {
+  'CAIXA ATIVA JBL MAX 15 (par)': JBL_MAX_15_IMAGE,
+  'CAIXA ATIVA FBT 112A (par)': FBT_112A_IMAGE,
+  'CAIXA SELENIUM SPM 1502 (ativa + passiva)': SELENIUM_SPM_IMAGE,
+};
+const featuredEquipmentNames = [
+  'CAIXA ATIVA JBL MAX 15 (par)',
+  'CAIXA ATIVA FBT 112A (par)',
+  'CAIXA SELENIUM SPM 1502 (ativa + passiva)',
+  'SUB ATIVO + PASSIVO 15"',
+] as const;
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -192,6 +216,13 @@ export default function App() {
 
   const unavailableDates = getUnavailableDates();
 
+  const getEquipmentImage = (item: Pick<Equipment, 'name' | 'imageUrl'>) => {
+    return equipmentImageByName[item.name] || item.imageUrl;
+  };
+  const displayedEquipment = equipment.filter(item =>
+    featuredEquipmentNames.includes(item.name as (typeof featuredEquipmentNames)[number])
+  );
+
   const isDateUnavailable = (date: Date) => {
     const dayStr = startOfDay(date).toISOString();
     return unavailableDates.some(d => startOfDay(d).toISOString() === dayStr);
@@ -267,22 +298,16 @@ export default function App() {
 
   const seedInitialEquipment = async () => {
     const initial = [
-      { name: 'Caixa de Som Ativa 15"', category: 'Sound', pricePerDay: 150, description: 'Potente e clara para eventos médios e grandes.' },
-      { name: 'Refletor LED Par 64 RGBW', category: 'Light', pricePerDay: 50, description: 'Iluminação colorida para palcos e decoração de ambientes.' },
-      { name: 'Microfone Sem Fio Shure QLXD', category: 'Microphones', pricePerDay: 85, description: 'Qualidade profissional digital para cerimônias e palestras.' },
-      { name: 'Luz Estroboscópica 1500W', category: 'Light', pricePerDay: 70, description: 'Efeito flash de alta intensidade para pistas de dança.' },
-      { name: 'Mesa de Som Digital 16 Canais', category: 'Sound', pricePerDay: 180, description: 'Mixagem profissional com efeitos integrados e controle via tablet.' },
-      { name: 'Subwoofer Ativo 18" 1000W', category: 'Sound', pricePerDay: 200, description: 'Graves profundos para festas e shows de grande porte.' },
-      { name: 'Máquina de Fumaça 1200W', category: 'Light', pricePerDay: 60, description: 'Realça os feixes de luz e cria atmosfera no evento.' },
-      { name: 'Kit de Cabos XLR/P10 (10m)', category: 'Cables', pricePerDay: 30, description: 'Conjunto de cabos blindados para conexão de todo o sistema.' },
-      { name: 'Pedestal para Microfone Girafa', category: 'Microphones', pricePerDay: 20, description: 'Suporte robusto e ajustável para qualquer tipo de uso.' },
-      { name: 'Moving Head Beam 7R', category: 'Light', pricePerDay: 150, description: 'Canhão de luz móvel com diversos globos e cores para efeitos dinâmicos.' },
+      { name: 'CAIXA ATIVA JBL MAX 15 (par)', category: 'Sound', pricePerDay: 250, description: 'Par de caixas ativas JBL para retirada, com alto rendimento e ótima presença para eventos.' },
+      { name: 'CAIXA ATIVA FBT 112A (par)', category: 'Sound', pricePerDay: 300, description: 'Par de caixas ativas FBT 112A com resposta forte e limpa para festas, cerimônias e locações.' },
+      { name: 'CAIXA SELENIUM SPM 1502 (ativa + passiva)', category: 'Sound', pricePerDay: 200, description: 'Conjunto Selenium SPM 1502 ativo + passivo com valor base para retirada.' },
+      { name: 'SUB ATIVO + PASSIVO 15"', category: 'Sound', pricePerDay: 350, description: 'Kit com sub ativo e passivo de 15 polegadas para reforço de graves. Frete combinado à parte.' },
     ];
 
     for (const item of initial) {
       await addDoc(collection(db, 'equipment'), {
         ...item,
-        imageUrl: `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/300`
+        imageUrl: equipmentImageByName[item.name] || `https://picsum.photos/seed/${encodeURIComponent(item.name)}/400/300`
       });
     }
   };
@@ -486,12 +511,12 @@ export default function App() {
                     </div>
 
                     <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
-                      {equipment.map(item => (
+                      {displayedEquipment.map(item => (
                         <div key={item.id} className="flex items-center gap-4 p-3 bg-zinc-900/50 border border-zinc-900 rounded-2xl group">
-                          <img src={item.imageUrl} className="w-12 h-12 rounded-xl object-cover" />
+                          <img src={getEquipmentImage(item)} className="w-12 h-12 rounded-xl object-cover" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold truncate">{item.name}</p>
-                            <p className="text-[10px] text-orange-500 font-black uppercase">R$ {item.pricePerDay}/dia</p>
+                            <p className="text-[10px] text-orange-500 font-black uppercase">Retirada: R$ {item.pricePerDay}</p>
                           </div>
                           <button 
                             onClick={() => handleDeleteEquipment(item.id)}
@@ -671,7 +696,7 @@ export default function App() {
                           </select>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Preço/Dia</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Valor Retirada</label>
                           <input 
                             type="number"
                             required
@@ -830,7 +855,7 @@ export default function App() {
             </h1>
             <p className="max-w-2xl mx-auto text-zinc-400 text-lg">
               Aluguel de equipamentos profissionais para festas, cerimônias e eventos de todos os portes. 
-              Qualidade garantida para o seu momento especial.
+              Valores para retirada, com frete combinado à parte.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <button 
@@ -865,19 +890,17 @@ export default function App() {
           <div className="flex items-end justify-between mb-12">
             <div>
               <h2 className="text-3xl font-black uppercase tracking-tighter">Equipamentos</h2>
-              <p className="text-zinc-500">O melhor do som e iluminação profissional</p>
+              <p className="text-zinc-500">Somente os 4 modelos disponíveis no momento. Valores para retirada.</p>
             </div>
             <div className="hidden sm:flex gap-2">
-              {['Tudo', 'Sound', 'Light', 'Microphones'].map(cat => (
-                <button key={cat} className="px-4 py-1.5 rounded-full text-xs font-bold border border-zinc-800 hover:border-orange-500 transition-colors">
-                  {cat}
-                </button>
-              ))}
+              <span className="px-4 py-1.5 rounded-full text-xs font-bold border border-zinc-800 text-zinc-400">
+                4 produtos
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {equipment.map((item, idx) => (
+            {displayedEquipment.map((item, idx) => (
               <motion.div 
                 key={item.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -890,7 +913,7 @@ export default function App() {
                   className="aspect-square relative overflow-hidden cursor-pointer"
                 >
                   <img 
-                    src={item.imageUrl} 
+                    src={getEquipmentImage(item)} 
                     alt={item.name}
                     className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
                     referrerPolicy="no-referrer"
@@ -907,7 +930,7 @@ export default function App() {
                     className="space-y-1 cursor-pointer"
                   >
                     <h3 className="text-sm md:text-base font-bold leading-tight line-clamp-1">{item.name}</h3>
-                    <p className="text-orange-500 font-black text-sm">R$ {item.pricePerDay}</p>
+                    <p className="text-orange-500 font-black text-sm">Retirada: R$ {item.pricePerDay}</p>
                   </div>
                   <button 
                     onClick={(e) => {
@@ -1054,7 +1077,7 @@ export default function App() {
                       ))}
                     </div>
                     <div className="pt-3 border-t border-zinc-800/50 flex justify-between items-center font-black">
-                      <span className="text-zinc-100 uppercase tracking-tighter">Total Diária</span>
+                      <span className="text-zinc-100 uppercase tracking-tighter">Total Retirada</span>
                       <span className="text-orange-500 text-lg">R$ {cartTotal}</span>
                     </div>
                   </div>
@@ -1203,7 +1226,7 @@ export default function App() {
             >
               <div className="w-full md:w-1/2 aspect-square md:aspect-auto relative bg-black">
                 <img 
-                  src={selectedEquipment.imageUrl} 
+                  src={getEquipmentImage(selectedEquipment)} 
                   alt={selectedEquipment.name}
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
@@ -1225,7 +1248,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="space-y-4">
-                    <p className="text-orange-500 text-2xl font-black">R$ {selectedEquipment.pricePerDay} <span className="text-zinc-500 text-sm font-normal">/ dia</span></p>
+                    <p className="text-orange-500 text-2xl font-black">R$ {selectedEquipment.pricePerDay} <span className="text-zinc-500 text-sm font-normal">retirada</span></p>
                     <div className="h-px bg-zinc-800 w-full" />
                     <p className="text-zinc-400 leading-relaxed">
                       {selectedEquipment.description}
