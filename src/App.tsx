@@ -40,6 +40,7 @@ import {
   Plus,
   Trash2,
   Mail,
+  MessageCircle,
   Menu,
   X
 } from 'lucide-react';
@@ -51,6 +52,12 @@ import "react-datepicker/dist/react-datepicker.css";
 import { ptBR } from 'date-fns/locale/pt-BR';
 
 registerLocale('pt-BR', ptBR);
+
+const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5511999999999';
+const WHATSAPP_MESSAGE = encodeURIComponent(
+  'Olá! Vim pelo site e gostaria de pedir um orçamento para aluguel de som e luz.'
+);
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${WHATSAPP_MESSAGE}`;
 
 // Types
 interface Equipment {
@@ -426,6 +433,18 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-orange-500/30">
       <Toaster position="top-center" richColors />
+      <a
+        href={WHATSAPP_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Falar no WhatsApp"
+        className="fixed bottom-6 right-6 z-[90] flex items-center gap-3 rounded-full border border-green-400/30 bg-green-500 px-5 py-4 text-black shadow-2xl shadow-green-500/20 transition-all hover:scale-105 hover:bg-green-400"
+      >
+        <MessageCircle size={22} />
+        <span className="hidden sm:inline text-sm font-black uppercase tracking-wider">
+          WhatsApp
+        </span>
+      </a>
       
       {/* Admin Panel Overlay */}
       <AnimatePresence>
@@ -711,6 +730,14 @@ export default function App() {
               {user && (
                 <a href="#my-bookings" className="text-sm font-medium hover:text-orange-500 transition-colors">Minhas Reservas</a>
               )}
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-medium text-green-400 hover:text-green-300 transition-colors"
+              >
+                WhatsApp
+              </a>
               {isAdmin && (
                 <button 
                   onClick={() => setShowAdmin(!showAdmin)}
@@ -771,6 +798,14 @@ export default function App() {
           >
             <a href="#catalog" className="block text-lg font-medium">Equipamentos</a>
             {user && <a href="#my-bookings" className="block text-lg font-medium">Minhas Reservas</a>}
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="block text-lg font-medium text-green-400"
+            >
+              WhatsApp
+            </a>
             {user ? (
               <button onClick={handleLogout} className="w-full text-left text-red-400 font-medium">Sair</button>
             ) : (
@@ -804,6 +839,15 @@ export default function App() {
               >
                 Reservar Agora
               </button>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-green-500 text-black px-8 py-4 rounded-full font-black uppercase tracking-widest hover:scale-105 transition-transform inline-flex items-center gap-2"
+              >
+                <MessageCircle size={18} />
+                Falar no WhatsApp
+              </a>
               <a 
                 href="#catalog"
                 className="border border-zinc-700 px-8 py-4 rounded-full font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors"
@@ -1230,7 +1274,14 @@ export default function App() {
           <p className="text-zinc-600 text-sm">© 2026 Som & Luz Equipamentos Profissionais. Todos os direitos reservados.</p>
           <div className="flex gap-6">
             <a href="#" className="text-zinc-500 hover:text-white transition-colors">Instagram</a>
-            <a href="#" className="text-zinc-500 hover:text-white transition-colors">WhatsApp</a>
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-green-400 hover:text-green-300 transition-colors"
+            >
+              WhatsApp
+            </a>
           </div>
         </div>
       </footer>
