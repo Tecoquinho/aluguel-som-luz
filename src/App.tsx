@@ -1,77 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  auth, 
-  db, 
-  googleProvider, 
-  handleFirestoreError, 
-  OperationType 
-} from './firebase';
-import { 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged, 
-  User as FirebaseUser 
-} from 'firebase/auth';
-import { 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
-  doc, 
-  setDoc, 
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc
-} from 'firebase/firestore';
-import { 
-  Music, 
-  Sun, 
-  Calendar, 
-  MapPin, 
-  Package, 
-  LogOut, 
-  LogIn, 
-  CheckCircle, 
-  Clock, 
-  XCircle,
-  Plus,
-  Trash2,
+import { useEffect, useState } from 'react';
+import {
+  ArrowRight,
+  CheckCircle,
+  ChevronRight,
+  Clock,
   Mail,
-  MessageCircle,
+  MapPin,
   Menu,
-  X
+  PartyPopper,
+  Phone,
+  Shield,
+  Star,
+  Users,
+  Volume2,
+  X,
+  Zap,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Toaster, toast } from 'sonner';
-import { format, addDays, isWithinInterval, eachDayOfInterval, startOfDay } from 'date-fns';
-import DatePicker, { registerLocale } from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
-import { ptBR } from 'date-fns/locale/pt-BR';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { db } from './firebase';
 
-registerLocale('pt-BR', ptBR);
-
-const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5521996341398';
-const WHATSAPP_MESSAGE = encodeURIComponent(
-  'Olá! Vim pelo site e gostaria de pedir um orçamento para aluguel de som e luz.'
-);
-const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${WHATSAPP_MESSAGE}`;
-const JBL_MAX_15_IMAGE = new URL(
-  '../Imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_647293-MLA99998222149_112025-F.webp',
-  import.meta.url
-).href;
-const FBT_112A_IMAGE = new URL(
-  '../Imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_691433-MLB97837649161_112025-F.webp',
-  import.meta.url
-).href;
-const SELENIUM_SPM_IMAGE = new URL(
-  '../Imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_706664-MLB103864028495_012026-F.webp',
-  import.meta.url
-).href;
-
-// Types
 interface Equipment {
   id: string;
   name: string;
@@ -81,37 +28,27 @@ interface Equipment {
   imageUrl: string;
 }
 
-interface Booking {
-  id: string;
-  clientUid: string;
-  clientEmail: string;
-  clientName: string;
-  startDate: string;
-  endDate: string;
-  location: string;
-  eventType: string;
-  packageType: string;
-  items: { id: string; name: string; price: number }[];
-  status: 'pending' | 'confirmed' | 'cancelled';
-  totalPrice: number;
-  createdAt: string;
-}
+const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5521996341398';
+const WHATSAPP_DISPLAY = '(21) 99634-1398';
+const WHATSAPP_MESSAGE = 'Olá! Vim pelo site e gostaria de pedir um orçamento para aluguel de som e luz.';
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
 
-interface UserProfile {
-  uid: string;
-  email: string;
-  displayName: string;
-  role: 'admin' | 'client';
-  createdAt: string;
-}
+const JBL_MAX_15_IMAGE = new URL(
+  '../imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_647293-MLA99998222149_112025-F.webp',
+  import.meta.url
+).href;
+const FBT_112A_IMAGE = new URL(
+  '../imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_691433-MLB97837649161_112025-F.webp',
+  import.meta.url
+).href;
+const SELENIUM_SPM_IMAGE = new URL(
+  '../imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_706664-MLB103864028495_012026-F.webp',
+  import.meta.url
+).href;
 
-const equipmentImageByName: Record<string, string> = {
-  'CAIXA ATIVA JBL MAX 15 (par)': JBL_MAX_15_IMAGE,
-  'CAIXA ATIVA FBT 112A (par)': FBT_112A_IMAGE,
-  'CAIXA SELENIUM SPM 1502 (ativa + passiva)': SELENIUM_SPM_IMAGE,
-};
-const featuredCatalog: Omit<Equipment, 'id'>[] = [
+const featuredCatalog: Equipment[] = [
   {
+    id: 'catalog-jbl-max-15',
     name: 'CAIXA ATIVA JBL MAX 15 (par)',
     category: 'Sound',
     pricePerDay: 250,
@@ -119,6 +56,7 @@ const featuredCatalog: Omit<Equipment, 'id'>[] = [
     imageUrl: JBL_MAX_15_IMAGE,
   },
   {
+    id: 'catalog-fbt-112a',
     name: 'CAIXA ATIVA FBT 112A (par)',
     category: 'Sound',
     pricePerDay: 300,
@@ -126,1210 +64,573 @@ const featuredCatalog: Omit<Equipment, 'id'>[] = [
     imageUrl: FBT_112A_IMAGE,
   },
   {
+    id: 'catalog-selenium-spm',
     name: 'CAIXA SELENIUM SPM 1502 (ativa + passiva)',
     category: 'Sound',
     pricePerDay: 200,
-    description: 'Conjunto Selenium SPM 1502 ativo + passivo com valor base para retirada.',
+    description: 'Conjunto Selenium ativo + passivo com valor base para retirada.',
     imageUrl: SELENIUM_SPM_IMAGE,
   },
   {
+    id: 'catalog-sub-15',
     name: 'SUB ATIVO + PASSIVO 15"',
     category: 'Sound',
     pricePerDay: 350,
     description: 'Kit com sub ativo e passivo de 15 polegadas para reforço de graves. Frete combinado à parte.',
-    imageUrl: 'https://picsum.photos/seed/sub-ativo-passivo-15/400/300',
+    imageUrl: 'https://picsum.photos/seed/sub-ativo-passivo-15/800/800',
   },
 ];
-const featuredEquipmentNames = featuredCatalog.map(item => item.name);
+
+const imageByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item.imageUrl]));
+const featuredNames = featuredCatalog.map(item => item.name);
+
+const events = [
+  { icon: PartyPopper, title: 'Festas', description: 'Aniversários, formaturas e confraternizações com som forte e montagem limpa.' },
+  { icon: Users, title: 'Eventos Sociais', description: 'Estrutura prática para cerimônias, encontros e comemorações familiares.' },
+  { icon: Zap, title: 'Ações e Locações', description: 'Retirada rápida e configuração objetiva para demandas pontuais.' },
+  { icon: Shield, title: 'Uso Profissional', description: 'Equipamentos revisados para quem precisa de previsibilidade e desempenho.' },
+];
+
+const advantages = [
+  { icon: CheckCircle, title: 'Equipamentos revisados', description: 'Tudo conferido antes da retirada ou entrega.' },
+  { icon: Clock, title: 'Atendimento direto', description: 'Resposta rápida para orçamento e disponibilidade.' },
+  { icon: Shield, title: 'Valores transparentes', description: 'Preço base de retirada, com frete combinado à parte.' },
+  { icon: Star, title: 'Curadoria enxuta', description: 'Só os modelos principais que realmente fazem sentido para locação.' },
+];
 
 export default function App() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<string>('Personalizado');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [cart, setCart] = useState<Equipment[]>([]);
-  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [isAddingEquipment, setIsAddingEquipment] = useState(false);
-  const [isAsking, setIsAsking] = useState(false);
-  const [askingBooking, setAskingBooking] = useState<Booking | null>(null);
-  const [askMessage, setAskMessage] = useState('');
-  const [newEquip, setNewEquip] = useState<Partial<Equipment>>({
+  const [scrolled, setScrolled] = useState(false);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [formData, setFormData] = useState({
     name: '',
-    category: 'Sound',
-    pricePerDay: 0,
-    description: '',
-    imageUrl: 'https://picsum.photos/seed/equip/400/300'
+    email: '',
+    phone: '',
+    eventType: '',
+    message: '',
   });
 
-  // Form State
-  const [startDate, setStartDate] = useState<Date | null>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(addDays(new Date(), 1));
-  const [location, setLocation] = useState('');
-  const [cep, setCep] = useState('');
-  const [eventType, setEventType] = useState('Festa');
-  const [isValidatingLocation, setIsValidatingLocation] = useState(false);
-  const [locationVerified, setLocationVerified] = useState(false);
-
-  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    setCep(value);
-
-    if (value.length === 8) {
-      setIsValidatingLocation(true);
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${value}/json/`);
-        const data = await response.json();
-
-        if (data.erro) {
-          toast.error('CEP não encontrado.');
-          setLocationVerified(false);
-        } else {
-          const fullAddress = `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
-          setLocation(fullAddress);
-          setLocationVerified(true);
-          toast.success('Endereço localizado!');
-        }
-      } catch (error) {
-        toast.error('Erro ao buscar CEP.');
-      } finally {
-        setIsValidatingLocation(false);
-      }
-    }
-  };
-
-  const toggleCart = (item: Equipment) => {
-    if (cart.find(i => i.id === item.id)) {
-      setCart(cart.filter(i => i.id !== item.id));
-      toast.info(`${item.name} removido do carrinho`);
-    } else {
-      setCart([...cart, item]);
-      toast.success(`${item.name} adicionado ao carrinho!`);
-    }
-  };
-
-  const removeFromCart = (id: string) => {
-    setCart(cart.filter(item => item.id !== id));
-  };
-
-  const cartTotal = cart.reduce((acc, item) => acc + item.pricePerDay, 0);
-
-  const getUnavailableDates = () => {
-    const unavailableSet = new Set<string>();
-    const confirmedBookings = bookings.filter(b => b.status === 'confirmed');
-    
-    // For each item in cart, find dates where it's already booked
-    cart.forEach(cartItem => {
-      confirmedBookings.forEach(booking => {
-        const hasItem = booking.items.some(i => i.id === cartItem.id);
-        if (hasItem) {
-          const start = startOfDay(new Date(booking.startDate));
-          const end = startOfDay(new Date(booking.endDate));
-          const days = eachDayOfInterval({ start, end });
-          days.forEach(day => unavailableSet.add(day.toISOString()));
-        }
-      });
-    });
-    
-    return Array.from(unavailableSet).map(d => new Date(d));
-  };
-
-  const unavailableDates = getUnavailableDates();
-
-  const getEquipmentImage = (item: Pick<Equipment, 'name' | 'imageUrl'>) => {
-    return equipmentImageByName[item.name] || item.imageUrl;
-  };
-  const featuredEquipment = equipment.filter(item =>
-    featuredEquipmentNames.includes(item.name)
-  );
-  const displayedEquipment = featuredEquipment.length > 0
-    ? featuredEquipment
-    : featuredCatalog.map(item => ({ ...item, id: item.name }));
-
-  const isDateUnavailable = (date: Date) => {
-    const dayStr = startOfDay(date).toISOString();
-    return unavailableDates.some(d => startOfDay(d).toISOString() === dayStr);
-  };
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        // Fetch or create profile
-        const userDocRef = doc(db, 'users', firebaseUser.uid);
-        try {
-          const docSnap = await getDoc(userDocRef);
-          if (!docSnap.exists()) {
-            const newProfile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || 'Usuário',
-              role: firebaseUser.email === 'thiagohabibmonteiroster@gmail.com' ? 'admin' : 'client',
-              createdAt: new Date().toISOString()
-            };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile);
-            setIsAdmin(newProfile.role === 'admin');
-          } else {
-            const data = docSnap.data() as UserProfile;
-            setProfile(data);
-            setIsAdmin(data.role === 'admin');
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, 'users');
-        }
-      } else {
-        setProfile(null);
-        setIsAdmin(false);
-      }
-      setLoading(false);
+    const q = query(collection(db, 'equipment'), orderBy('name'));
+    const unsubscribe = onSnapshot(q, snapshot => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Equipment));
+      setEquipment(items);
     });
 
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // Equipment listener
-    const q = query(collection(db, 'equipment'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Equipment));
-      setEquipment(items);
-      
-      // Ensure the featured catalog exists even if the database still has old example items.
-      const hasFeaturedItems = items.some(item => featuredEquipmentNames.includes(item.name));
-      if (!hasFeaturedItems && isAdmin) {
-        seedInitialEquipment();
-      }
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'equipment'));
-
-    return () => unsubscribe();
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!user) return;
-    // Bookings listener
-    const q = isAdmin 
-      ? query(collection(db, 'bookings'), orderBy('createdAt', 'desc'))
-      : query(collection(db, 'bookings'), where('clientUid', '==', user.uid), orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
-      setBookings(items);
-    }, (error) => handleFirestoreError(error, OperationType.LIST, 'bookings'));
-
-    return () => unsubscribe();
-  }, [user, isAdmin]);
-
-  const seedInitialEquipment = async () => {
-    const existingSnapshot = await getDocs(query(collection(db, 'equipment'), orderBy('name')));
-    const existingNames = new Set(
-      existingSnapshot.docs.map(doc => String(doc.data().name || ''))
-    );
-
-    for (const item of featuredCatalog) {
-      if (existingNames.has(item.name)) continue;
-      await addDoc(collection(db, 'equipment'), {
+  const displayedEquipment = (() => {
+    const matched = equipment
+      .filter(item => featuredNames.includes(item.name))
+      .map(item => ({
         ...item,
-        imageUrl: equipmentImageByName[item.name] || item.imageUrl
-      });
-    }
-  };
+        imageUrl: imageByName[item.name] || item.imageUrl,
+      }));
 
-  const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      toast.success('Login realizado com sucesso!');
-    } catch (error: any) {
-      console.error('Login error:', error);
-      toast.error(`Erro ao fazer login: ${error.message || 'Erro desconhecido'}`);
-    }
-  };
+    if (matched.length > 0) return matched;
+    return featuredCatalog;
+  })();
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    toast.info('Você saiu da conta.');
-  };
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const message = [
+      'Olá! Quero solicitar um orçamento.',
+      `Nome: ${formData.name}`,
+      `E-mail: ${formData.email}`,
+      `Telefone: ${formData.phone}`,
+      `Tipo de evento: ${formData.eventType || 'Não informado'}`,
+      `Mensagem: ${formData.message || 'Sem detalhes adicionais.'}`,
+    ].join('\n');
 
-  const handleBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !startDate || !endDate || cart.length === 0) {
-      if (cart.length === 0) toast.error('Selecione ao menos um equipamento!');
-      return;
-    }
-
-    if (!locationVerified) {
-      toast.error('Por favor, verifique o endereço antes de confirmar.');
-      return;
-    }
-
-    // Check if any date in range is unavailable
-    const range = eachDayOfInterval({ start: startOfDay(startDate), end: startOfDay(endDate) });
-    const hasUnavailableDate = range.some(date => isDateUnavailable(date));
-
-    if (hasUnavailableDate) {
-      toast.error('Alguns itens não estão disponíveis nas datas selecionadas.');
-      return;
-    }
-
-    const newBooking: Omit<Booking, 'id'> = {
-      clientUid: user.uid,
-      clientEmail: user.email || '',
-      clientName: user.displayName || 'Cliente',
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      location,
-      eventType,
-      packageType: selectedPackage,
-      items: cart.map(i => ({ id: i.id, name: i.name, price: i.pricePerDay })),
-      status: 'pending',
-      totalPrice: cartTotal,
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      const docRef = await addDoc(collection(db, 'bookings'), newBooking);
-      setShowBookingModal(false);
-      setCart([]);
-      toast.success('Pedido de aluguel enviado com sucesso!');
-      
-      // Notify server
-      fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking: { ...newBooking, id: docRef.id }, type: 'new' })
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'bookings');
-    }
-  };
-
-  const updateBookingStatus = async (id: string, status: 'confirmed' | 'cancelled') => {
-    try {
-      const bookingRef = doc(db, 'bookings', id);
-      await updateDoc(bookingRef, { status });
-      toast.success(`Reserva ${status === 'confirmed' ? 'confirmada' : 'cancelada'}.`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'bookings');
-    }
-  };
-
-  const handleAddEquipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAdmin) return;
-    
-    try {
-      await addDoc(collection(db, 'equipment'), {
-        ...newEquip,
-        imageUrl: `https://picsum.photos/seed/${encodeURIComponent(newEquip.name || 'equip')}/400/300`
-      });
-      setIsAddingEquipment(false);
-      setNewEquip({ name: '', category: 'Sound', pricePerDay: 0, description: '', imageUrl: 'https://picsum.photos/seed/equip/400/300' });
-      toast.success('Equipamento adicionado com sucesso!');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'equipment');
-    }
-  };
-
-  const handleDeleteEquipment = async (id: string) => {
-    if (!isAdmin || !window.confirm('Tem certeza que deseja excluir este item?')) return;
-    try {
-      await deleteDoc(doc(db, 'equipment', id));
-      toast.success('Equipamento removido do catálogo.');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'equipment');
-    }
-  };
-
-  const handleAsk = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!askingBooking || !askMessage) return;
-
-    try {
-      // Notify server about the question
-      await fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          booking: askingBooking, 
-          type: 'question',
-          message: askMessage
-        })
-      });
-      
-      toast.success(`Mensagem enviada para ${askingBooking.clientName}!`);
-      setIsAsking(false);
-      setAskMessage('');
-      setAskingBooking(null);
-    } catch (error) {
-      toast.error('Erro ao enviar mensagem.');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-white font-sans">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Music size={48} className="text-orange-500" />
-        </motion.div>
-      </div>
+    window.open(
+      `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`,
+      '_blank',
+      'noopener,noreferrer'
     );
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans selection:bg-orange-500/30">
-      <Toaster position="top-center" richColors />
-      <a
-        href={WHATSAPP_URL}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Falar no WhatsApp"
-        className="fixed bottom-6 right-6 z-[90] flex items-center gap-3 rounded-full border border-green-400/30 bg-green-500 px-5 py-4 text-black shadow-2xl shadow-green-500/20 transition-all hover:scale-105 hover:bg-green-400"
+    <div className="min-h-screen bg-dark-950 text-white">
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled ? 'bg-dark-900/95 backdrop-blur-lg shadow-xl' : 'bg-transparent'
+        }`}
       >
-        <MessageCircle size={22} />
-        <span className="hidden sm:inline text-sm font-black uppercase tracking-wider">
-          WhatsApp
-        </span>
-      </a>
-      
-      {/* Admin Panel Overlay */}
-      <AnimatePresence>
-        {showAdmin && isAdmin && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-zinc-950 flex flex-col pt-16"
-          >
-            <div className="flex-1 overflow-y-auto p-6 md:p-12">
-              <div className="max-w-7xl mx-auto space-y-12">
-                <div className="flex justify-between items-end">
-                  <div>
-                    <h2 className="text-5xl font-black tracking-tighter uppercase italic">Painel Admin</h2>
-                    <p className="text-zinc-500 font-medium mt-2">Gestão total do seu negócio de aluguel</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowAdmin(false)}
-                    className="p-4 bg-zinc-900 rounded-full hover:bg-zinc-800 border border-zinc-800 transition-colors"
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                  {/* Equipment Management */}
-                  <div className="lg:col-span-1 space-y-6">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
-                        Catálogo
-                      </h3>
-                      <button 
-                        onClick={() => setIsAddingEquipment(true)}
-                        className="p-2 bg-orange-500 text-black rounded-full hover:scale-110 transition-transform"
-                      >
-                        <Plus size={20} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 scrollbar-hide">
-                      {displayedEquipment.map(item => (
-                        <div key={item.id} className="flex items-center gap-4 p-3 bg-zinc-900/50 border border-zinc-900 rounded-2xl group">
-                          <img src={getEquipmentImage(item)} className="w-12 h-12 rounded-xl object-cover" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold truncate">{item.name}</p>
-                            <p className="text-[10px] text-orange-500 font-black uppercase">Retirada: R$ {item.pricePerDay}</p>
-                          </div>
-                          <button 
-                            onClick={() => handleDeleteEquipment(item.id)}
-                            className="p-2 text-zinc-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Bookings Management */}
-                  <div className="lg:col-span-2 space-y-6">
-                    <h3 className="text-xl font-black uppercase tracking-widest">Todas as Reservas</h3>
-                    <div className="space-y-4">
-                      {bookings.map(booking => (
-                        <div key={booking.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 hover:border-orange-500/30 transition-all">
-                          <div className="flex flex-col md:flex-row justify-between gap-6">
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                  booking.status === 'confirmed' ? 'bg-green-500/10 text-green-500' : 
-                                  booking.status === 'cancelled' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
-                                }`}>
-                                  {booking.status === 'confirmed' ? 'Confirmada' : booking.status === 'cancelled' ? 'Cancelada' : 'Pendente'}
-                                </span>
-                                <span className="text-[10px] text-zinc-500 font-bold uppercase">{format(new Date(booking.createdAt), 'dd/MM/yy HH:mm')}</span>
-                              </div>
-                              <h4 className="text-xl font-bold">{booking.clientName}</h4>
-                              <p className="text-sm text-zinc-500">{booking.clientEmail}</p>
-                              <div className="flex flex-wrap gap-4 text-xs text-zinc-400 pt-2">
-                                <div className="flex items-center gap-1.5"><Calendar size={14} /> {format(new Date(booking.startDate), 'dd/MM/yy')} - {format(new Date(booking.endDate), 'dd/MM/yy')}</div>
-                                <div className="flex items-center gap-1.5"><MapPin size={14} /> {booking.location}</div>
-                              </div>
-                            </div>
-                            <div className="text-right flex flex-col justify-between">
-                              <div>
-                                <p className="text-xs text-zinc-500 uppercase font-bold">Total</p>
-                                <p className="text-2xl font-black text-orange-500">R$ {booking.totalPrice}</p>
-                              </div>
-                              <div className="flex gap-2 mt-4">
-                                <button 
-                                  onClick={() => {
-                                    setAskingBooking(booking);
-                                    setIsAsking(true);
-                                  }}
-                                  className="flex-1 px-4 py-2 bg-zinc-800 text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-zinc-700 transition-all flex items-center justify-center gap-2"
-                                >
-                                  <Mail size={14} /> Perguntar
-                                </button>
-                                <button 
-                                  onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                                  disabled={booking.status === 'confirmed'}
-                                  className="flex-1 px-4 py-2 bg-green-500 text-black text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-green-400 disabled:opacity-50 transition-all"
-                                >
-                                  Confirmar
-                                </button>
-                                <button 
-                                  onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                                  disabled={booking.status === 'cancelled'}
-                                  className="flex-1 px-4 py-2 bg-zinc-800 text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-zinc-700 disabled:opacity-50 transition-all"
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Ask Modal */}
-            <AnimatePresence>
-              {isAsking && askingBooking && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setIsAsking(false)}
-                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
-                  />
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="relative bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl"
-                  >
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-3xl font-black uppercase italic">Tirar Dúvida</h3>
-                      <button onClick={() => setIsAsking(false)} className="p-2 hover:bg-zinc-800 rounded-full">
-                        <X size={20} />
-                      </button>
-                    </div>
-                    <p className="text-sm text-zinc-500 mb-6">
-                      Enviando mensagem para <span className="text-white font-bold">{askingBooking.clientName}</span> sobre a reserva de <span className="text-orange-500 font-bold">{askingBooking.packageType}</span>.
-                    </p>
-                    <form onSubmit={handleAsk} className="space-y-5">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sua Mensagem</label>
-                        <textarea 
-                          required
-                          autoFocus
-                          placeholder="Ex: Olá, gostaria de confirmar se o local possui tomadas 220v..."
-                          value={askMessage}
-                          onChange={e => setAskMessage(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 h-40 focus:outline-none focus:border-orange-500 transition-colors resize-none"
-                        />
-                      </div>
-                      <div className="flex gap-4 pt-4">
-                        <button 
-                          type="button"
-                          onClick={() => setIsAsking(false)}
-                          className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-700 transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                        <button 
-                          type="submit"
-                          className="flex-1 py-4 bg-orange-500 text-black font-black uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Mail size={18} /> Enviar
-                        </button>
-                      </div>
-                    </form>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
-            {/* Add Equipment Modal */}
-            <AnimatePresence>
-              {isAddingEquipment && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setIsAddingEquipment(false)}
-                    className="absolute inset-0 bg-black/90 backdrop-blur-md"
-                  />
-                  <motion.div 
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
-                    className="relative bg-zinc-900 border border-zinc-800 p-8 rounded-[2.5rem] max-w-md w-full shadow-2xl"
-                  >
-                    <h3 className="text-3xl font-black uppercase italic mb-8">Novo Equipamento</h3>
-                    <form onSubmit={handleAddEquipment} className="space-y-5">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Nome</label>
-                        <input 
-                          required
-                          value={newEquip.name}
-                          onChange={e => setNewEquip({...newEquip, name: e.target.value})}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none focus:border-orange-500 transition-colors"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Categoria</label>
-                          <select 
-                            value={newEquip.category}
-                            onChange={e => setNewEquip({...newEquip, category: e.target.value as any})}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none"
-                          >
-                            <option value="Sound">Som</option>
-                            <option value="Light">Luz</option>
-                            <option value="DJ">DJ</option>
-                            <option value="Cables">Cabos</option>
-                            <option value="Microphones">Microfones</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Valor Retirada</label>
-                          <input 
-                            type="number"
-                            required
-                            value={newEquip.pricePerDay}
-                            onChange={e => setNewEquip({...newEquip, pricePerDay: Number(e.target.value)})}
-                            className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Descrição</label>
-                        <textarea 
-                          required
-                          value={newEquip.description}
-                          onChange={e => setNewEquip({...newEquip, description: e.target.value})}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-3 h-24 focus:outline-none resize-none"
-                        />
-                      </div>
-                      <div className="flex gap-4 pt-4">
-                        <button 
-                          type="button"
-                          onClick={() => setIsAddingEquipment(false)}
-                          className="flex-1 py-4 bg-zinc-800 text-zinc-400 font-black uppercase tracking-widest rounded-2xl hover:bg-zinc-700 transition-colors"
-                        >
-                          Cancelar
-                        </button>
-                        <button 
-                          type="submit"
-                          className="flex-1 py-4 bg-orange-500 text-black font-black uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-colors"
-                        >
-                          Salvar
-                        </button>
-                      </div>
-                    </form>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center gap-2">
-              <div className="bg-orange-500 p-1.5 rounded-lg">
-                <Music className="text-black" size={20} />
+          <div className="flex items-center justify-between h-16 md:h-20">
+            <a href="#" className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center">
+                <Volume2 className="w-6 h-6 text-dark-900" />
               </div>
-              <span className="text-xl font-bold tracking-tighter uppercase">Som & Luz</span>
-            </div>
-            
+              <span className="font-bold text-xl">
+                Som<span className="text-brand-400">Luz</span>
+              </span>
+            </a>
+
             <div className="hidden md:flex items-center gap-8">
-              <a href="#catalog" className="text-sm font-medium hover:text-orange-500 transition-colors">Equipamentos</a>
-              {user && (
-                <a href="#my-bookings" className="text-sm font-medium hover:text-orange-500 transition-colors">Minhas Reservas</a>
-              )}
+              <a href="#produtos" className="text-dark-300 hover:text-white transition-colors">Produtos</a>
+              <a href="#eventos" className="text-dark-300 hover:text-white transition-colors">Eventos</a>
+              <a href="#sobre" className="text-dark-300 hover:text-white transition-colors">Sobre</a>
+              <a href="#contato" className="text-dark-300 hover:text-white transition-colors">Contato</a>
               <a
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm font-medium text-green-400 hover:text-green-300 transition-colors"
+                className="bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-dark-900 font-semibold px-6 py-2.5 rounded-lg transition-all"
               >
-                WhatsApp
+                Solicitar Orçamento
               </a>
-              {isAdmin && (
-                <button 
-                  onClick={() => setShowAdmin(!showAdmin)}
-                  className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${
-                    showAdmin ? 'bg-orange-500 text-black' : 'text-orange-500 border border-orange-500/30 hover:bg-orange-500/10'
-                  }`}
-                >
-                  Painel Admin
-                </button>
-              )}
-              <div className="flex items-center gap-4">
-                {cart.length > 0 && (
-                  <button 
-                    onClick={() => setShowBookingModal(true)}
-                    className="relative p-2 bg-orange-500 text-black rounded-full hover:scale-110 transition-transform"
-                  >
-                    <Package size={20} />
-                    <span className="absolute -top-1 -right-1 bg-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-orange-500">
-                      {cart.length}
-                    </span>
-                  </button>
-                )}
-                {user ? (
-                  <>
-                    <span className="text-xs text-zinc-400">{user.displayName}</span>
-                    <button onClick={handleLogout} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
-                      <LogOut size={18} />
-                    </button>
-                  </>
-                ) : (
-                  <button 
-                    onClick={handleLogin}
-                    className="bg-white text-black px-4 py-2 rounded-full text-sm font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center gap-2"
-                  >
-                    <LogIn size={16} /> Entrar
-                  </button>
-                )}
-              </div>
             </div>
 
-            <div className="md:hidden">
-              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2">
-                {isMenuOpen ? <X /> : <Menu />}
-              </button>
-            </div>
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="md:hidden text-white p-2"
+            >
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </div>
         </div>
+
+        {isMenuOpen && (
+          <div className="md:hidden bg-dark-900/95 backdrop-blur-lg border-t border-dark-800">
+            <div className="px-4 py-6 space-y-4">
+              <a href="#produtos" className="block text-dark-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>Produtos</a>
+              <a href="#eventos" className="block text-dark-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>Eventos</a>
+              <a href="#sobre" className="block text-dark-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>Sobre</a>
+              <a href="#contato" className="block text-dark-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>Contato</a>
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="block bg-gradient-to-r from-brand-500 to-brand-600 text-dark-900 font-semibold px-6 py-3 rounded-lg text-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Solicitar Orçamento
+              </a>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden bg-zinc-900 border-b border-zinc-800 p-4 space-y-4"
-          >
-            <a href="#catalog" className="block text-lg font-medium">Equipamentos</a>
-            {user && <a href="#my-bookings" className="block text-lg font-medium">Minhas Reservas</a>}
-            <a
-              href={WHATSAPP_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="block text-lg font-medium text-green-400"
-            >
-              WhatsApp
-            </a>
-            {user ? (
-              <button onClick={handleLogout} className="w-full text-left text-red-400 font-medium">Sair</button>
-            ) : (
-              <button onClick={handleLogin} className="w-full bg-white text-black py-3 rounded-xl font-bold">Entrar com Google</button>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-brand-400/10 rounded-full blur-3xl animate-pulse-slow [animation-delay:1s]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
 
-      {/* Hero Section */}
-      <header className="relative py-24 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-orange-500/10 to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center space-y-6"
-          >
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter uppercase leading-[0.9]">
-              Som <span className="text-orange-500">Puro</span><br />
-              Luz <span className="text-orange-500">Vibrante</span>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-20">
+          <div className="animate-fade-in">
+            <div className="inline-flex items-center gap-2 bg-dark-800/50 border border-dark-700 rounded-full px-4 py-2 mb-8">
+              <Star className="w-4 h-4 text-brand-400" />
+              <span className="text-sm text-dark-300">Catálogo direto, atendimento rápido e locação objetiva</span>
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+              Aluguel de Equipamentos de
+              <br />
+              <span className="bg-gradient-to-r from-brand-400 via-brand-500 to-brand-300 bg-clip-text text-transparent">
+                Som Profissional
+              </span>
             </h1>
-            <p className="max-w-2xl mx-auto text-zinc-400 text-lg">
-              Aluguel de equipamentos profissionais para festas, cerimônias e eventos de todos os portes. 
-              Valores para retirada, com frete combinado à parte.
+
+            <p className="text-lg sm:text-xl text-dark-400 max-w-3xl mx-auto mb-10">
+              Estrutura enxuta, modelos selecionados e preços claros para retirada.
+              Frete, entrega e montagem combinados à parte conforme o evento.
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <button 
-                onClick={() => user ? setShowBookingModal(true) : handleLogin()}
-                className="bg-orange-500 text-black px-8 py-4 rounded-full font-black uppercase tracking-widest hover:scale-105 transition-transform"
-              >
-                Reservar Agora
-              </button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="bg-green-500 text-black px-8 py-4 rounded-full font-black uppercase tracking-widest hover:scale-105 transition-transform inline-flex items-center gap-2"
+                className="group inline-flex items-center gap-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-dark-900 font-semibold px-8 py-4 rounded-xl transition-all shadow-lg shadow-brand-500/25"
               >
-                <MessageCircle size={18} />
-                Falar no WhatsApp
+                Solicitar Orçamento
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </a>
-              <a 
-                href="#catalog"
-                className="border border-zinc-700 px-8 py-4 rounded-full font-black uppercase tracking-widest hover:bg-zinc-800 transition-colors"
+              <a
+                href="#produtos"
+                className="inline-flex items-center gap-2 bg-dark-800/50 hover:bg-dark-800 border border-dark-700 text-white font-medium px-8 py-4 rounded-xl transition-all"
               >
-                Ver Catálogo
+                Ver Produtos
               </a>
-            </div>
-          </motion.div>
-        </div>
-      </header>
-
-      {/* Catalog Section */}
-      <section id="catalog" className="py-24 bg-zinc-900/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-12">
-            <div>
-              <h2 className="text-3xl font-black uppercase tracking-tighter">Equipamentos</h2>
-              <p className="text-zinc-500">Somente os 4 modelos disponíveis no momento. Valores para retirada.</p>
-            </div>
-            <div className="hidden sm:flex gap-2">
-              <span className="px-4 py-1.5 rounded-full text-xs font-bold border border-zinc-800 text-zinc-400">
-                4 produtos
-              </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-            {displayedEquipment.map((item, idx) => (
-              <motion.div 
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+            <div className="w-6 h-10 border-2 border-dark-600 rounded-full flex justify-center pt-2">
+              <div className="w-1.5 h-3 bg-brand-400 rounded-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="produtos" className="section-padding bg-dark-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <span className="inline-block text-brand-400 font-semibold text-sm tracking-wider uppercase mb-4">
+              Produtos Disponíveis
+            </span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Os 4 modelos do <span className="gradient-text">catálogo atual</span>
+            </h2>
+            <p className="text-dark-400 max-w-2xl mx-auto">
+              Valores base para retirada. Caso precise de entrega, montagem ou operação,
+              o frete e a logística são combinados separadamente.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {displayedEquipment.map(item => (
+              <article
                 key={item.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="group bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden hover:border-orange-500/50 transition-all flex flex-col"
+                className="group overflow-hidden rounded-2xl bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700 hover:border-brand-500/40 transition-all duration-300 hover:-translate-y-1"
               >
-                <div 
-                  onClick={() => setSelectedEquipment(item)}
-                  className="aspect-square relative overflow-hidden cursor-pointer"
-                >
-                  <img 
-                    src={getEquipmentImage(item)} 
+                <div className="aspect-[4/4] overflow-hidden bg-dark-950">
+                  <img
+                    src={item.imageUrl}
                     alt={item.name}
-                    className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute top-2 left-2">
-                    <span className="bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest">
-                      {item.category}
-                    </span>
+                </div>
+                <div className="p-6">
+                  <div className="inline-flex items-center rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-brand-400 mb-4">
+                    {item.category}
+                  </div>
+                  <h3 className="text-lg font-semibold mb-3 min-h-[56px]">{item.name}</h3>
+                  <p className="text-dark-400 text-sm leading-relaxed min-h-[72px]">{item.description}</p>
+                  <div className="mt-6 pt-6 border-t border-dark-700 flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-dark-400 text-xs uppercase tracking-wider">Valor retirada</p>
+                      <p className="text-2xl font-bold text-brand-400">R$ {item.pricePerDay}</p>
+                    </div>
+                    <a
+                      href={`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(`Olá! Quero orçamento para ${item.name}.`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-dark-900 hover:bg-brand-400 transition-colors"
+                    >
+                      Pedir
+                      <ChevronRight className="w-4 h-4" />
+                    </a>
                   </div>
                 </div>
-                <div className="p-3 md:p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div 
-                    onClick={() => setSelectedEquipment(item)}
-                    className="space-y-1 cursor-pointer"
-                  >
-                    <h3 className="text-sm md:text-base font-bold leading-tight line-clamp-1">{item.name}</h3>
-                    <p className="text-orange-500 font-black text-sm">Retirada: R$ {item.pricePerDay}</p>
-                  </div>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCart(item);
-                    }}
-                    className={`w-full py-2 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-2 ${
-                      cart.find(i => i.id === item.id) 
-                      ? 'bg-orange-500 text-black' 
-                      : 'bg-zinc-900 hover:bg-zinc-800'
-                    }`}
-                  >
-                    {cart.find(i => i.id === item.id) ? (
-                      <><CheckCircle size={14} /> No Carrinho</>
-                    ) : (
-                      <><Plus size={14} /> Adicionar</>
-                    )}
-                  </button>
-                </div>
-              </motion.div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Admin / My Bookings Section */}
-      <section id="my-bookings" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-12">
-            <h2 className="text-3xl font-black uppercase tracking-tighter">
-              {isAdmin ? 'Gestão de Reservas' : 'Minhas Reservas'}
+      <section id="eventos" className="section-padding bg-dark-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <span className="inline-block text-brand-400 font-semibold text-sm tracking-wider uppercase mb-4">
+              Tipos de Atendimento
+            </span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Estrutura para <span className="gradient-text">diferentes cenários</span>
             </h2>
-            <p className="text-zinc-500">Acompanhe o status dos seus pedidos</p>
+            <p className="text-dark-400 max-w-2xl mx-auto">
+              O layout segue o modelo novo, mas o catálogo permanece alinhado aos produtos reais já definidos.
+            </p>
           </div>
 
-          <div className="space-y-4">
-            {bookings.length === 0 ? (
-              <div className="text-center py-20 border-2 border-dashed border-zinc-800 rounded-3xl">
-                <Calendar className="mx-auto text-zinc-700 mb-4" size={48} />
-                <p className="text-zinc-500">Nenhuma reserva encontrada.</p>
-              </div>
-            ) : (
-              bookings.map((booking) => (
-                <div key={booking.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${
-                        booking.status === 'confirmed' ? 'bg-green-500' : 
-                        booking.status === 'cancelled' ? 'bg-red-500' : 'bg-orange-500'
-                      }`} />
-                      <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                        {booking.status === 'confirmed' ? 'Confirmado' : 
-                         booking.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
-                      </span>
-                    </div>
-                    <h4 className="text-lg font-bold">{booking.packageType} - {booking.eventType}</h4>
-                    <div className="flex flex-wrap gap-4 text-sm text-zinc-500">
-                      <div className="flex items-center gap-1.5"><Calendar size={14} /> {format(new Date(booking.startDate), 'dd/MM/yy')}</div>
-                      <div className="flex items-center gap-1.5"><MapPin size={14} /> {booking.location}</div>
-                      {isAdmin && <div className="flex items-center gap-1.5"><Package size={14} /> {booking.clientName}</div>}
-                    </div>
-                    {booking.items && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {booking.items.map((item, i) => (
-                          <span key={i} className="text-[10px] bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700">
-                            {item.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {events.map((item, index) => (
+              <div
+                key={index}
+                className="relative group overflow-hidden rounded-2xl bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700 hover:border-brand-500/30 transition-all"
+              >
+                <div className="p-6">
+                  <div className="w-12 h-12 bg-brand-500/10 rounded-lg flex items-center justify-center mb-4">
+                    <item.icon className="w-6 h-6 text-brand-400" />
                   </div>
-
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs text-zinc-500 uppercase font-bold">Total</p>
-                      <p className="text-xl font-black text-orange-500">R$ {booking.totalPrice}</p>
-                    </div>
-                    {isAdmin && booking.status === 'pending' && (
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                          className="p-2 bg-green-500/10 text-green-500 rounded-xl hover:bg-green-500 hover:text-black transition-colors"
-                        >
-                          <CheckCircle size={20} />
-                        </button>
-                        <button 
-                          onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                          className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 hover:text-black transition-colors"
-                        >
-                          <XCircle size={20} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+                  <p className="text-dark-400 text-sm">{item.description}</p>
                 </div>
-              ))
-            )}
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-brand-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Booking Modal */}
-      <AnimatePresence>
-        {showBookingModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowBookingModal(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-zinc-900 border border-zinc-800 rounded-[2rem] w-full max-w-xl overflow-hidden shadow-2xl"
-            >
-              <div className="p-8 space-y-8">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-3xl font-black uppercase tracking-tighter">Nova Reserva</h2>
-                  <button onClick={() => setShowBookingModal(false)} className="p-2 hover:bg-zinc-800 rounded-full">
-                    <X size={24} />
-                  </button>
-                </div>
+      <section id="sobre" className="section-padding bg-dark-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+            <div>
+              <span className="inline-block text-brand-400 font-semibold text-sm tracking-wider uppercase mb-4">
+                Por que nos escolher
+              </span>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+                Visual novo com operação <span className="gradient-text">objetiva</span>
+              </h2>
+              <p className="text-dark-400 mb-8 text-lg leading-relaxed">
+                Mantive o número de WhatsApp atual e os produtos já definidos, mas trazendo o site
+                para o layout mais profissional que você separou. A proposta continua simples:
+                catálogo enxuto, preço claro e contato direto para orçamento.
+              </p>
 
-                <form onSubmit={handleBooking} className="space-y-6">
-                  {/* Cart Summary in Modal */}
-                  <div className="bg-zinc-950/50 border border-zinc-800/50 rounded-2xl p-5 space-y-3">
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Itens Selecionados</p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {advantages.map((item, index) => (
+                  <div key={index} className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-brand-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <item.icon className="w-4 h-4 text-brand-400" />
                     </div>
-                    <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
-                      {cart.map(item => (
-                        <div key={item.id} className="flex justify-between items-center text-sm group">
-                          <span className="text-zinc-300 font-medium truncate pr-4">{item.name}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-orange-500 font-bold whitespace-nowrap">R$ {item.pricePerDay}</span>
-                            <button type="button" onClick={() => removeFromCart(item.id)} className="text-zinc-600 hover:text-red-500 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="pt-3 border-t border-zinc-800/50 flex justify-between items-center font-black">
-                      <span className="text-zinc-100 uppercase tracking-tighter">Total Retirada</span>
-                      <span className="text-orange-500 text-lg">R$ {cartTotal}</span>
+                    <div>
+                      <h4 className="font-semibold text-sm mb-1">{item.title}</h4>
+                      <p className="text-dark-400 text-sm">{item.description}</p>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Início</label>
-                      <div className="relative">
-                        <DatePicker
-                          selected={startDate}
-                          onChange={(date) => setStartDate(date)}
-                          selectsStart
-                          startDate={startDate}
-                          endDate={endDate}
-                          minDate={new Date()}
-                          locale="pt-BR"
-                          dayClassName={date => isDateUnavailable(date) ? "text-red-500 font-bold !bg-red-500/10" : undefined}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 text-sm font-bold tracking-tight"
-                          dateFormat="dd/MM/yyyy"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Fim</label>
-                      <div className="relative">
-                        <DatePicker
-                          selected={endDate}
-                          onChange={(date) => setEndDate(date)}
-                          selectsEnd
-                          startDate={startDate}
-                          endDate={endDate}
-                          minDate={startDate || new Date()}
-                          locale="pt-BR"
-                          dayClassName={date => isDateUnavailable(date) ? "text-red-500 font-bold !bg-red-500/10" : undefined}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 text-sm font-bold tracking-tight"
-                          dateFormat="dd/MM/yyyy"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">CEP</label>
-                      <div className="relative">
-                        <input 
-                          value={cep}
-                          onChange={handleCepChange}
-                          maxLength={8}
-                          placeholder="00000000"
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 text-sm font-bold tracking-tight"
-                        />
-                        {isValidatingLocation && (
-                          <motion.div 
-                            animate={{ rotate: 360 }} 
-                            transition={{ repeat: Infinity, duration: 1 }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-orange-500"
-                          >
-                            <Clock size={14} />
-                          </motion.div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="col-span-2 space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Local do Evento (Rua, Nº, Compl.)</label>
-                      <div className="relative">
-                        <MapPin className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${locationVerified ? 'text-green-500' : 'text-zinc-600'}`} size={18} />
-                        <input 
-                          required
-                          value={location}
-                          onChange={(e) => {
-                            setLocation(e.target.value);
-                            // If they manually edit, we still trust the CEP was valid if they don't clear it
-                            if (!e.target.value) setLocationVerified(false);
-                          }}
-                          placeholder="Digite o endereço completo"
-                          className={`w-full bg-zinc-950 border rounded-2xl pl-12 pr-4 py-4 focus:outline-none transition-all text-sm font-medium ${
-                            locationVerified ? 'border-green-500/50 focus:border-green-500' : 'border-zinc-800 focus:border-orange-500'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  {locationVerified && (
-                    <p className="text-[10px] text-green-500 font-bold flex items-center gap-1">
-                      <CheckCircle size={10} /> Endereço validado via CEP
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Tipo de Evento</label>
-                      <select 
-                        value={eventType}
-                        onChange={(e) => setEventType(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 appearance-none text-sm font-medium"
-                      >
-                        {['Festa', 'Cerimonia', 'Pequena', 'Grande', 'Medio Porte'].map(t => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Pacote</label>
-                      <select 
-                        value={selectedPackage}
-                        onChange={(e) => setSelectedPackage(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-4 focus:outline-none focus:border-orange-500 appearance-none text-sm font-medium"
-                      >
-                        {['só Luz', 'Luz + Som', 'Personalizado'].map(p => (
-                          <option key={p} value={p}>{p}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full bg-orange-500 text-black py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-orange-400 transition-all active:scale-[0.98] shadow-lg shadow-orange-500/20"
-                  >
-                    Confirmar Pedido
-                  </button>
-                </form>
+                ))}
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Product Detail Modal */}
-      <AnimatePresence>
-        {selectedEquipment && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedEquipment(null)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-zinc-900 border border-zinc-800 rounded-[2.5rem] w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col md:flex-row"
-            >
-              <div className="w-full md:w-1/2 aspect-square md:aspect-auto relative bg-black">
-                <img 
-                  src={getEquipmentImage(selectedEquipment)} 
-                  alt={selectedEquipment.name}
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute top-6 left-6">
-                  <span className="bg-orange-500 text-black px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest">
-                    {selectedEquipment.category}
-                  </span>
-                </div>
-              </div>
-              <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between space-y-8">
-                <div className="space-y-6">
-                  <div className="flex justify-between items-start">
-                    <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tighter leading-none">
-                      {selectedEquipment.name}
-                    </h2>
-                    <button onClick={() => setSelectedEquipment(null)} className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
-                      <X size={24} />
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    <p className="text-orange-500 text-2xl font-black">R$ {selectedEquipment.pricePerDay} <span className="text-zinc-500 text-sm font-normal">retirada</span></p>
-                    <div className="h-px bg-zinc-800 w-full" />
-                    <p className="text-zinc-400 leading-relaxed">
-                      {selectedEquipment.description}
-                    </p>
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Especificações</p>
-                      <ul className="text-sm text-zinc-300 space-y-1 list-disc list-inside">
-                        <li>Equipamento profissional revisado</li>
-                        <li>Garantia de funcionamento</li>
-                        <li>Suporte técnico incluso</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => {
-                      toggleCart(selectedEquipment);
-                      setSelectedEquipment(null);
-                    }}
-                    className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest transition-all ${
-                      cart.find(i => i.id === selectedEquipment.id)
-                      ? 'bg-zinc-800 text-white border border-zinc-700'
-                      : 'bg-orange-500 text-black hover:scale-[1.02]'
-                    }`}
-                  >
-                    {cart.find(i => i.id === selectedEquipment.id) ? 'Remover do Carrinho' : 'Adicionar ao Carrinho'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Footer */}
-      <footer className="py-12 border-t border-zinc-800 mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2">
-            <div className="bg-zinc-800 p-1.5 rounded-lg">
-              <Music className="text-orange-500" size={20} />
             </div>
-            <span className="text-xl font-bold tracking-tighter uppercase">Som & Luz</span>
+
+            <div className="relative">
+              <div className="aspect-square bg-gradient-to-br from-dark-800 to-dark-900 rounded-2xl border border-dark-700 overflow-hidden relative">
+                <img
+                  src={displayedEquipment[0]?.imageUrl || JBL_MAX_15_IMAGE}
+                  alt="Equipamento profissional"
+                  className="w-full h-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent" />
+
+                <div className="absolute bottom-6 left-6 right-6">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-dark-900/80 backdrop-blur-lg rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-brand-400">4</div>
+                      <div className="text-xs text-dark-400">Produtos</div>
+                    </div>
+                    <div className="bg-dark-900/80 backdrop-blur-lg rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-brand-400">100%</div>
+                      <div className="text-xs text-dark-400">WhatsApp</div>
+                    </div>
+                    <div className="bg-dark-900/80 backdrop-blur-lg rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-brand-400">Base</div>
+                      <div className="text-xs text-dark-400">Retirada</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-brand-500/20 rounded-2xl blur-xl" />
+              <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-brand-400/10 rounded-2xl blur-xl" />
+            </div>
           </div>
-          <p className="text-zinc-600 text-sm">© 2026 Som & Luz Equipamentos Profissionais. Todos os direitos reservados.</p>
-          <div className="flex gap-6">
-            <a href="#" className="text-zinc-500 hover:text-white transition-colors">Instagram</a>
+        </div>
+      </section>
+
+      <section className="section-padding bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(245,158,11,0.1),transparent_70%)]" />
+
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
+            Pronto para fechar seu <span className="gradient-text">orçamento</span>?
+          </h2>
+          <p className="text-dark-400 text-lg mb-8 max-w-2xl mx-auto">
+            Chama no WhatsApp e eu já deixo separado o modelo que você precisa, com frete combinado se for o caso.
+          </p>
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-dark-900 font-semibold px-8 py-4 rounded-xl transition-all shadow-lg shadow-brand-500/25"
+          >
+            Fale Conosco Agora
+            <ChevronRight className="w-5 h-5" />
+          </a>
+        </div>
+      </section>
+
+      <section id="contato" className="section-padding bg-dark-900">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-20">
+            <div>
+              <span className="inline-block text-brand-400 font-semibold text-sm tracking-wider uppercase mb-4">
+                Entre em Contato
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-6">
+                Vamos <span className="gradient-text">conversar</span>
+              </h2>
+              <p className="text-dark-400 mb-8">
+                O contato principal continua sendo via WhatsApp, com orçamento direto e resposta mais rápida.
+              </p>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-dark-400 text-sm">Telefone / WhatsApp</p>
+                    <p className="font-semibold">{WHATSAPP_DISPLAY}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-dark-400 text-sm">Atendimento</p>
+                    <p className="font-semibold">Orçamentos e dúvidas pelo WhatsApp</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-brand-500/10 rounded-xl flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-dark-400 text-sm">Condição comercial</p>
+                    <p className="font-semibold">Retirada como base. Frete sob consulta.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-dark-800/50 border border-dark-700 rounded-2xl p-6 sm:p-8">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Nome completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={event => setFormData({ ...formData, name: event.target.value })}
+                    className="w-full bg-dark-900/50 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                    placeholder="Seu nome"
+                  />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">E-mail</label>
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={event => setFormData({ ...formData, email: event.target.value })}
+                      className="w-full bg-dark-900/50 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Telefone</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={event => setFormData({ ...formData, phone: event.target.value })}
+                      className="w-full bg-dark-900/50 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                      placeholder={WHATSAPP_DISPLAY}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tipo de evento</label>
+                  <select
+                    value={formData.eventType}
+                    onChange={event => setFormData({ ...formData, eventType: event.target.value })}
+                    className="w-full bg-dark-900/50 border border-dark-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                  >
+                    <option value="" className="bg-dark-900">Selecione</option>
+                    <option value="festa" className="bg-dark-900">Festa</option>
+                    <option value="cerimonia" className="bg-dark-900">Cerimônia</option>
+                    <option value="evento-social" className="bg-dark-900">Evento social</option>
+                    <option value="locacao-direta" className="bg-dark-900">Locação direta</option>
+                    <option value="outro" className="bg-dark-900">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Mensagem</label>
+                  <textarea
+                    rows={4}
+                    value={formData.message}
+                    onChange={event => setFormData({ ...formData, message: event.target.value })}
+                    className="w-full bg-dark-900/50 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors resize-none"
+                    placeholder="Conte quais produtos você precisa, data e se vai retirar ou pedir entrega."
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-dark-900 font-semibold py-4 rounded-xl transition-all shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Enviar pelo WhatsApp
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <a
+        href={WHATSAPP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:shadow-green-500/30 transition-all duration-300 hover:scale-110 group"
+        aria-label="Contato via WhatsApp"
+      >
+        <svg
+          className="w-7 h-7 group-hover:scale-110 transition-transform"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554-.001 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+        <span className="absolute right-full mr-3 bg-dark-900 text-white text-sm px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+          Fale conosco!
+        </span>
+      </a>
+
+      <footer className="bg-dark-950 border-t border-dark-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
+            <div className="md:col-span-2">
+              <a href="#" className="flex items-center gap-2 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-brand-400 to-brand-600 rounded-lg flex items-center justify-center">
+                  <Volume2 className="w-6 h-6 text-dark-900" />
+                </div>
+                <span className="font-bold text-xl">
+                  Som<span className="text-brand-400">Luz</span>
+                </span>
+              </a>
+              <p className="text-dark-400 max-w-md">
+                Catálogo objetivo de som profissional para locação, com orçamento rápido e atendimento direto no WhatsApp.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Links Rápidos</h4>
+              <ul className="space-y-2">
+                <li><a href="#produtos" className="text-dark-400 hover:text-white transition-colors">Produtos</a></li>
+                <li><a href="#eventos" className="text-dark-400 hover:text-white transition-colors">Eventos</a></li>
+                <li><a href="#sobre" className="text-dark-400 hover:text-white transition-colors">Sobre</a></li>
+                <li><a href="#contato" className="text-dark-400 hover:text-white transition-colors">Contato</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Contato</h4>
+              <ul className="space-y-2 text-dark-400">
+                <li>{WHATSAPP_DISPLAY}</li>
+                <li>Orçamentos pelo WhatsApp</li>
+                <li>Retirada base, frete sob consulta</li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-dark-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-dark-500 text-sm">
+              {new Date().getFullYear()} SomLuz. Todos os direitos reservados.
+            </p>
             <a
               href={WHATSAPP_URL}
               target="_blank"
               rel="noreferrer"
-              className="text-green-400 hover:text-green-300 transition-colors"
+              className="text-dark-400 hover:text-brand-400 transition-colors"
             >
               WhatsApp
             </a>
