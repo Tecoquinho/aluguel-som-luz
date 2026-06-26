@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Mail,
@@ -26,6 +27,7 @@ interface Equipment {
   description: string;
   pricePerDay: number;
   imageUrl: string;
+  images?: string[];
 }
 
 const WHATSAPP_PHONE = import.meta.env.VITE_WHATSAPP_PHONE || '5521996341398';
@@ -45,6 +47,36 @@ const SELENIUM_SPM_IMAGE = new URL(
   '../imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_706664-MLB103864028495_012026-F.webp',
   import.meta.url
 ).href;
+const SUB_15_IMAGE = new URL(
+  '../imagens/SUB ATIVO + PASSIVO 15/D_NQ_NP_2X_710638-MLB110431065483_042026-F.webp',
+  import.meta.url
+).href;
+
+const JBL_MAX_15_IMAGES = [
+  JBL_MAX_15_IMAGE,
+  new URL('../imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_665385-MLA91990711827_092025-F.webp', import.meta.url).href,
+  new URL('../imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_681118-MLU72836509233_112023-F.webp', import.meta.url).href,
+  new URL('../imagens/Caixa de Som Ativa JBL MAX 15 com Bluetooth e Woofer de 15/D_NQ_NP_2X_816981-MLA51274869284_082022-F.webp', import.meta.url).href,
+];
+const FBT_112A_IMAGES = [
+  FBT_112A_IMAGE,
+  new URL('../imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_701608-MLB97838028109_112025-F.webp', import.meta.url).href,
+  new URL('../imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_734491-MLB97374832192_112025-F.webp', import.meta.url).href,
+  new URL('../imagens/Alto-falante Fbt X-lite 12a Com Bluetooth Black 100v240v/D_NQ_NP_2X_870471-MLB97837170539_112025-F.webp', import.meta.url).href,
+];
+const SELENIUM_SPM_IMAGES = [
+  SELENIUM_SPM_IMAGE,
+  new URL('../imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_770121-MLB103345451944_012026-F.webp', import.meta.url).href,
+  new URL('../imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_774417-MLB103864029287_012026-F.webp', import.meta.url).href,
+  new URL('../imagens/Caixa De Som Ativa Jbl Selenium Spm-1503a (Usado)/D_NQ_NP_2X_803750-MLB103345581578_012026-F.webp', import.meta.url).href,
+];
+const SUB_15_IMAGES = [
+  SUB_15_IMAGE,
+  new URL('../imagens/SUB ATIVO + PASSIVO 15/D_NQ_NP_2X_721806-MLB110431065487_042026-F.webp', import.meta.url).href,
+  new URL('../imagens/SUB ATIVO + PASSIVO 15/D_NQ_NP_2X_794598-MLB110431065489_042026-F.webp', import.meta.url).href,
+  new URL('../imagens/SUB ATIVO + PASSIVO 15/D_NQ_NP_2X_800900-MLB110431065491_042026-F.webp', import.meta.url).href,
+  new URL('../imagens/SUB ATIVO + PASSIVO 15/D_NQ_NP_2X_993190-MLB110431065485_042026-F.webp', import.meta.url).href,
+];
 
 const featuredCatalog: Equipment[] = [
   {
@@ -54,6 +86,7 @@ const featuredCatalog: Equipment[] = [
     pricePerDay: 250,
     description: 'Par de caixas ativas JBL para retirada, com alto rendimento e ótima presença para eventos.',
     imageUrl: JBL_MAX_15_IMAGE,
+    images: JBL_MAX_15_IMAGES,
   },
   {
     id: 'catalog-fbt-112a',
@@ -62,6 +95,7 @@ const featuredCatalog: Equipment[] = [
     pricePerDay: 300,
     description: 'Par de caixas ativas FBT 112A com resposta forte e limpa para festas, cerimônias e locações.',
     imageUrl: FBT_112A_IMAGE,
+    images: FBT_112A_IMAGES,
   },
   {
     id: 'catalog-selenium-spm',
@@ -70,6 +104,7 @@ const featuredCatalog: Equipment[] = [
     pricePerDay: 200,
     description: 'Conjunto Selenium ativo + passivo com valor base para retirada.',
     imageUrl: SELENIUM_SPM_IMAGE,
+    images: SELENIUM_SPM_IMAGES,
   },
   {
     id: 'catalog-sub-15',
@@ -77,11 +112,13 @@ const featuredCatalog: Equipment[] = [
     category: 'Sound',
     pricePerDay: 350,
     description: 'Kit com sub ativo e passivo de 15 polegadas para reforço de graves. Frete combinado à parte.',
-    imageUrl: 'https://picsum.photos/seed/sub-ativo-passivo-15/800/800',
+    imageUrl: SUB_15_IMAGE,
+    images: SUB_15_IMAGES,
   },
 ];
 
 const imageByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item.imageUrl]));
+const galleryByName = Object.fromEntries(featuredCatalog.map(item => [item.name, item.images || [item.imageUrl]]));
 const featuredNames = featuredCatalog.map(item => item.name);
 
 const events = [
@@ -102,6 +139,7 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [currentImageById, setCurrentImageById] = useState<Record<string, number>>({});
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -132,11 +170,26 @@ export default function App() {
       .map(item => ({
         ...item,
         imageUrl: imageByName[item.name] || item.imageUrl,
+        images: galleryByName[item.name] || item.images || [item.imageUrl],
       }));
 
     if (matched.length > 0) return matched;
     return featuredCatalog;
   })();
+
+  const getProductImages = (item: Equipment) => item.images && item.images.length > 0 ? item.images : [item.imageUrl];
+
+  const changeProductImage = (itemId: string, direction: 1 | -1, totalImages: number) => {
+    setCurrentImageById(current => {
+      const currentIndex = current[itemId] || 0;
+      const nextIndex = (currentIndex + direction + totalImages) % totalImages;
+      return { ...current, [itemId]: nextIndex };
+    });
+  };
+
+  const setProductImage = (itemId: string, index: number) => {
+    setCurrentImageById(current => ({ ...current, [itemId]: index }));
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -288,17 +341,58 @@ export default function App() {
           </div>
 
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {displayedEquipment.map(item => (
+            {displayedEquipment.map(item => {
+              const productImages = getProductImages(item);
+              const currentImageIndex = currentImageById[item.id] || 0;
+              const currentImage = productImages[currentImageIndex] || item.imageUrl;
+
+              return (
               <article
                 key={item.id}
                 className="group overflow-hidden rounded-2xl bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700 hover:border-brand-500/40 transition-all duration-300 hover:-translate-y-1"
               >
-                <div className="aspect-[4/4] overflow-hidden bg-dark-950">
+                <div className="aspect-[4/4] overflow-hidden bg-dark-950 relative">
                   <img
-                    src={item.imageUrl}
+                    src={currentImage}
                     alt={item.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
+                  {productImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => changeProductImage(item.id, -1, productImages.length)}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-dark-950/80 border border-dark-700 text-white flex items-center justify-center hover:bg-dark-900 transition-colors"
+                        aria-label={`Ver foto anterior de ${item.name}`}
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => changeProductImage(item.id, 1, productImages.length)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-dark-950/80 border border-dark-700 text-white flex items-center justify-center hover:bg-dark-900 transition-colors"
+                        aria-label={`Ver próxima foto de ${item.name}`}
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                        {productImages.map((_, index) => (
+                          <button
+                            key={`${item.id}-dot-${index}`}
+                            type="button"
+                            onClick={() => setProductImage(item.id, index)}
+                            className={`h-2.5 rounded-full transition-all ${
+                              index === currentImageIndex ? 'w-6 bg-brand-400' : 'w-2.5 bg-white/55 hover:bg-white/80'
+                            }`}
+                            aria-label={`Ver foto ${index + 1} de ${item.name}`}
+                          />
+                        ))}
+                      </div>
+                      <div className="absolute top-3 right-3 rounded-full bg-dark-950/80 border border-dark-700 px-3 py-1 text-[11px] font-semibold text-dark-300">
+                        {currentImageIndex + 1}/{productImages.length}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="p-6">
                   <div className="inline-flex items-center rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-brand-400 mb-4">
@@ -323,7 +417,7 @@ export default function App() {
                   </div>
                 </div>
               </article>
-            ))}
+            )})}
           </div>
         </div>
       </section>
